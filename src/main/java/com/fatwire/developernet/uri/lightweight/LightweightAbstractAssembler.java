@@ -387,4 +387,68 @@ public abstract class LightweightAbstractAssembler implements Assembler
 
         return res;
     }
+
+    /**
+     * Given an array of query-string-like packed arguments, eliminate the specified parameters and
+     * return the packedargs parameter with the values stripped.
+     *
+     * @param origPackedargsStrings array of query string-like packed args.
+     * @param toExclude list of args to remove from the packed args.
+     * @return array the same length as the original array, containing the same values, except the
+     *         <code>toExclude</code> parameters are removed.  If all params end up getting removed,
+     *         the packedargs string ends up being null.  The array returned is never null though.
+     * @throws IllegalArgumentException if the input args or the input list are null.
+     */
+    protected final String[] excludeFromPackedargs(String[] origPackedargsStrings, Collection<String> toExclude)
+    {
+        if(origPackedargsStrings == null)
+        {
+            throw new IllegalArgumentException("OrigPackedArgsStrings must not be null");
+        }
+        if(toExclude == null)
+        {
+            throw new IllegalArgumentException("ToExclude list may not be null");
+        }
+        String[] newPackedargsStrings = new String[origPackedargsStrings.length];
+        for(int i = 0; i < origPackedargsStrings.length; i++)
+        {
+            Map<String, String[]> oldPacked = parseQueryString(origPackedargsStrings[i]);
+            Map<String, String[]> newPacked = new HashMap<String, String[]>();
+            for(String opK : oldPacked.keySet())
+            {
+                if(LOG.isTraceEnabled())
+                {
+                    LOG.trace("checking to see if a param should be excluded from packedargs: " + opK);
+                }
+                if(!toExclude.contains(opK))
+                {
+                    newPacked.put(opK, oldPacked.get(opK));
+                }
+            }
+            // now re-assemble the query string
+            if(newPacked.size() > 0)
+            {
+                StringBuilder newPackedStr = new StringBuilder();
+                for(String npK : newPacked.keySet())
+                {
+                    for(String npV : newPacked.get(npK))
+                    {
+                        if(newPackedStr.length() > 0)
+                        {
+                            newPackedStr.append('&');
+                        }
+                        newPackedStr.append(encode(npK)).append('=').append(encode(npV));
+                    }
+                }
+                newPackedargsStrings[i] = newPackedStr.toString();
+            }
+            else
+            {
+                // no values left
+                newPackedargsStrings[i] = null;
+            }
+        }
+
+        return newPackedargsStrings;
+    }
 }

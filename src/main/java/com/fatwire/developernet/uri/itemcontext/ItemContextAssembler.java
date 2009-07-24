@@ -366,7 +366,7 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
                         }
                     }
 
-                    vals = _excludeFromPackedargs(vals, exclude);
+                    vals = excludeFromPackedargs(vals, exclude);
                 }
                 newQryParams.put(key, vals);
             }
@@ -415,41 +415,6 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
         }
     }
 
-    private String[] _excludeFromPackedargs(String[] vals, Collection<String> toExclude)
-    {
-        Map<String, String[]> oldPacked = parseQueryString(vals[0]);
-        Map<String, String[]> newPacked = new HashMap<String, String[]>();
-        for(String opK : oldPacked.keySet())
-        {
-            if(LOG.isTraceEnabled())
-            {
-                LOG.trace("checking to see if a param should be excluded from packedargs: " + opK);
-            }
-            if(!toExclude.contains(opK))
-            {
-                newPacked.put(opK, oldPacked.get(opK));
-            }
-        }
-        vals = null;
-        if(newPacked.size() > 0)
-        {
-            StringBuilder newPackedStr = new StringBuilder();
-            for(String npK : newPacked.keySet())
-            {
-                for(String npV : newPacked.get(npK))
-                {
-                    if(newPackedStr.length() > 0)
-                    {
-                        newPackedStr.append('&');
-                    }
-                    newPackedStr.append(encode(npK)).append('=').append(encode(npV));
-                }
-            }
-            vals = new String[1];
-            vals[0] = newPackedStr.toString();
-        }
-        return vals;
-    }
 
     public Definition disassemble(URI uri, ContainerType containerType) throws URISyntaxException
     {
