@@ -371,48 +371,7 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
                 newQryParams.put(key, vals);
             }
         }
-        return _toQueryString(newQryParams);
-    }
-
-    private String _toQueryString(Map<String, String[]> newQryParams)
-    {
-        StringBuilder qryStr = new StringBuilder();
-        for(String key : newQryParams.keySet())
-        {
-            String[] vals = newQryParams.get(key);
-            if(vals != null)
-            {
-                // Loop through the values for the parameter
-                for(String val : vals)
-                {
-                    // Append the correct separator
-                    if(qryStr.length() > 0)
-                    {
-                        qryStr.append('&');
-                    }
-
-                    // Append the name and value to the URL
-                    if(LOG.isTraceEnabled())
-                    {
-                        StringBuilder bf = new StringBuilder("About to add [key]=[value] to url [" + key + "]=[" + val + "]");
-                        bf.append(" after encoding: [").append(encode(key)).append("]=[").append(encode(val)).append("]");
-                        LOG.trace(bf);
-
-                    }
-                    qryStr.append(encode(key)).append('=').append(encode(val));
-                }
-            }
-        }
-
-        // prepare result
-        if(qryStr.length() > 0)
-        {
-            return qryStr.toString();
-        }
-        else
-        {
-            return null;
-        }
+        return constructQueryString(newQryParams);
     }
 
 

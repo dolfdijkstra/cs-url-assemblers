@@ -20,8 +20,9 @@ import java.util.*;
 
 /**
  * Lightweight abstract assembler that handles property management,
- * provides a logger, and handles encoding and decoding.  Much lighter
- * in weight than <code>com.fatwire.cs.core.uri.AbstractAssembler</code>.
+ * provides a logger, handles encoding and decoding and query string
+ * processing.  Much lighter in weight than
+ * <code>com.fatwire.cs.core.uri.AbstractAssembler</code>.
  *
  * @author Tony Field
  * @since Sep 27, 2008
@@ -259,7 +260,7 @@ public abstract class LightweightAbstractAssembler implements Assembler
      * @throws IllegalArgumentException if there are mistakes
      * in the string that make it impossible to parse.
      */
-    final protected Map<String, String[]> parseQueryString(String qry)
+    protected final Map<String, String[]> parseQueryString(String qry)
     {
         Map<String, String[]> rawPairs = new HashMap<String, String[]>();
         if(qry == null)
@@ -389,6 +390,55 @@ public abstract class LightweightAbstractAssembler implements Assembler
     }
 
     /**
+     * Given an input map of name-value pairs, construct a query string.  This supports
+     * multiple values for any given parameter.  Names and values are properly encoded.
+     *
+     * @param parameters parameters to encode and place in the query string
+     * @return the query string, or null if no values needed to be added.
+     * @see #encode(String)
+     */
+    protected final String constructQueryString(Map<String, String[]> parameters)
+    {
+        StringBuilder qryStr = new StringBuilder();
+        for(String key : parameters.keySet())
+        {
+            String[] vals = parameters.get(key);
+            if(vals != null)
+            {
+                // Loop through the values for the parameter
+                for(String val : vals)
+                {
+                    // Append the correct separator
+                    if(qryStr.length() > 0)
+                    {
+                        qryStr.append('&');
+                    }
+
+                    // Append the name and value to the URL
+                    if(LOG.isTraceEnabled())
+                    {
+                        StringBuilder bf = new StringBuilder("About to add [key]=[value] to url [" + key + "]=[" + val + "]");
+                        bf.append(" after encoding: [").append(encode(key)).append("]=[").append(encode(val)).append("]");
+                        LOG.trace(bf);
+
+                    }
+                    qryStr.append(encode(key)).append('=').append(encode(val));
+                }
+            }
+        }
+
+        // prepare result
+        if(qryStr.length() > 0)
+        {
+            return qryStr.toString();
+        }
+        else
+        {
+            return null;
+        }
+    }
+
+    /**
      * Given an array of query-string-like packed arguments, eliminate the specified parameters and
      * return the packedargs parameter with the values stripped.
      *
@@ -409,7 +459,9 @@ public abstract class LightweightAbstractAssembler implements Assembler
         {
             throw new IllegalArgumentException("ToExclude list may not be null");
         }
+
         String[] newPackedargsStrings = new String[origPackedargsStrings.length];
+
         for(int i = 0; i < origPackedargsStrings.length; i++)
         {
             Map<String, String[]> oldPacked = parseQueryString(origPackedargsStrings[i]);
@@ -425,28 +477,9 @@ public abstract class LightweightAbstractAssembler implements Assembler
                     newPacked.put(opK, oldPacked.get(opK));
                 }
             }
-            // now re-assemble the query string
-            if(newPacked.size() > 0)
-            {
-                StringBuilder newPackedStr = new StringBuilder();
-                for(String npK : newPacked.keySet())
-                {
-                    for(String npV : newPacked.get(npK))
-                    {
-                        if(newPackedStr.length() > 0)
-                        {
-                            newPackedStr.append('&');
-                        }
-                        newPackedStr.append(encode(npK)).append('=').append(encode(npV));
-                    }
-                }
-                newPackedargsStrings[i] = newPackedStr.toString();
-            }
-            else
-            {
-                // no values left
-                newPackedargsStrings[i] = null;
-            }
+
+            newPackedargsStrings[i] = constructQueryString(newPacked);
+
         }
 
         return newPackedargsStrings;
