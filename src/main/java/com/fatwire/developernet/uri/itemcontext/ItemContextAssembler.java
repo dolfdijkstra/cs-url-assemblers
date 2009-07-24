@@ -117,7 +117,8 @@ import java.util.*;
  * <p>This assembler depends on some main configuration properties.  Content Server version 7 requires these properties
  * to be set in the ServletRequest.properties file.</p>
  * <p>The item type aliasing needs to be  defined for each item type to be converted by this assembler.  See
- * {@link #PROP_ITEM_TYPE_PARAMETER_PREFIX} and {@link #PROP_ITEM_TYPE_ALIAS_PREFIX} for details.</p>
+ * {@link #PROP_ITEM_TYPE_PARAMETER_PREFIX} and {@link #PROP_ITEM_TYPE_ALIAS_PREFIX} for details.  If omitted, no
+ * automatic aliasing of item-type will occur.</p>
  * <p>Item type for contexts must also be configured if the default value is not desired.
  * See {@link #PROP_ITEM_TYPE_FOR_CONTEXT} for details.</p>
  * <p>The required template name and wrapper name also need to be configured.  This assembler will only be executed if
@@ -136,12 +137,16 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
     /**
      * <p>Prefix of the property used to define which alias is to be used by the item type appended to this prefix.</p>
      * <p>e.g. com.fatwire.developernet.uri.itemcontext.item-type.parameter.FW_Content_C = article</p>
+     * <p>If this is omitted, no item-type aliasing occurs, and the value passed in as item-type is automatically
+     * used as the value in the URL.</p>
      */
     public static final String PROP_ITEM_TYPE_PARAMETER_PREFIX = "com.fatwire.developernet.uri.itemcontext.item-type.parameter.";
 
     /**
      * <p>Prefix of the property used to define which item type to use for the item alias appended to this prefix.</p>
      * <p>e.g. com.fatwire.developernet.uri.itemcontext.item-type.alias.article = FW_Content_C</p>
+     * <p>If this is omitted, no item-type aliasing occurs, and the value in the URL is returned as the value of the
+     * item-type parameter.</p>
      */
     public static final String PROP_ITEM_TYPE_ALIAS_PREFIX = "com.fatwire.developernet.uri.itemcontext.item-type.alias.";
 
@@ -176,7 +181,7 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
      */
     public static final String PROP_ALWAYS_UNPACK_ARGS = "com.fatwire.developernet.uri.itemcontext.nopack-args";
 
-    private final Assembler theBackupAssembler = new QueryAssembler();
+    private final Assembler theBackupAssembler = new QueryAssembler(); // todo: consider configuring this (must be backward-compatible though)
     private final Collection<String> nopack_args = new ArrayList<String>();
     private String context_type = PROP_ITEM_TYPE_FOR_CONTEXT_DEFAULT;
     private String global_wrapper_pagename;
@@ -600,7 +605,7 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
      */
     private String itemTypeNameFromAlias(String alias)
     {
-        return getProperty(PROP_ITEM_TYPE_ALIAS_PREFIX + alias, null);
+        return getProperty(PROP_ITEM_TYPE_ALIAS_PREFIX + alias, alias);
     }
 
     /**
@@ -611,7 +616,7 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
      */
     private String aliasFromItemTypeName(String atName)
     {
-        return getProperty(PROP_ITEM_TYPE_PARAMETER_PREFIX + atName, null);
+        return getProperty(PROP_ITEM_TYPE_PARAMETER_PREFIX + atName, atName);
     }
 
     private final String _getWrapperForAuthority(String authority)
