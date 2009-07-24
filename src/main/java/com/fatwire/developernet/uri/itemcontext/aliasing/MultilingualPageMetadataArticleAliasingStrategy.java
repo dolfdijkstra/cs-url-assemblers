@@ -26,9 +26,21 @@ import java.util.*;
 
 /**
  * This translation strategy uses the path field for all asset types, just
- * as in the PathFieldTranslationStrategy, but for Page assets, it looks up
+ * as in the {@link PathAliasingStrategy}, but for Page assets, it looks up
  * an article by a named association, translates it into the desired locale,
  * and uses that asset instead.
+ * <p/>
+ * <p><strong>Configuration</strong></p>
+ * <p>This aliasing strategy offers two configuration parameters, with reasonable default values.
+ * It needs to know which named association to use to retrieve the asset containing the alias information, and
+ * it needs to know what type of asset that is expected to be:</p>
+ * <p>{@link #PROPERTY_PAGE_ARTICLE_ASSOCIATION_NAME} is the property name corresponding to the association name,
+ * and {@link #PROPERTY_PAGE_ARTICLE_ASSET_TYPE} contains the asset type that should be retrieved from the
+ * association.</p>
+ * <p>Properties are configured in the {@link #CONFIGURATION_FILE_NAME} file.</p>
+ *
+ * @author Tony Field
+ * @since Jun 1, 2009
  */
 public class MultilingualPageMetadataArticleAliasingStrategy implements AssetAliasingStrategy
 {
@@ -44,6 +56,8 @@ public class MultilingualPageMetadataArticleAliasingStrategy implements AssetAli
     /**
      * Property name defining the name of the association to be used to look up an associated article from
      * the page asset
+     *
+     * @see #PROPERTY_PAGE_ARTICLE_ASSOCIATION_NAME_DEFAULT
      */
     public static final String PROPERTY_PAGE_ARTICLE_ASSOCIATION_NAME = "com.fatwire.developernet.uri.itemcontext.aliasing.MultilingualPageMetadataArticleAliasingStrategy.association-name";
     /**
@@ -52,6 +66,8 @@ public class MultilingualPageMetadataArticleAliasingStrategy implements AssetAli
     public static final String PROPERTY_PAGE_ARTICLE_ASSOCIATION_NAME_DEFAULT = "MetadataArticle";
     /**
      * Property name defining the asset type of the article that is associated with the page asset.
+     *
+     * @see #PROPERTY_PAGE_ARTICLE_ASSET_TYPE_DEFAULT
      */
     public static final String PROPERTY_PAGE_ARTICLE_ASSET_TYPE = "com.fatwire.developernet.uri.itemcontext.aliasing.MultilingualPageMetadataArticleAliasingStrategy.article-type";
     /**

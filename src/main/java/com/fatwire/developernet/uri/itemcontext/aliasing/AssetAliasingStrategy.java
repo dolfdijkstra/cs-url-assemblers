@@ -17,6 +17,9 @@ import java.util.List;
  * into a string to be used as part of a URL, and back.
  * <p/>
  * Constructors must take a single argument, ICS.
+ *
+ * @author Tony Field
+ * @since Jun 1, 2009
  */
 public interface AssetAliasingStrategy
 {

@@ -28,14 +28,101 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 
 /**
- * Helper class for dealing with the ItemContext assembler that is based on the Site Plan Tree.  Specifically,
+ * <p>Helper class for dealing with the ItemContext assembler that is based on the Site Plan Tree.  Specifically,
  * When the context is defined as a concatenation of sequential page aliases in the Site plan tree, this assembler
- * is appropriate.  In other words, <code>http://localhost:8080/cs/Satellite/[level1page]/[level2page]/[level3page]<code>
- * urls and related URLs are supported.
- *
- * This helper class relies on a valid {@link AssetAliasingStrategy} being configured.
- * 
- * // todo: greatly enhance documentation
+ * is appropriate.  In other words, <code>item-context</code> can be mapped to
+ * <code>[level1page]/[level2page]/[level3page]</code>.
+ * This can result in URLs that look like the following:
+ * <code>http://localhost:8080/cs/Satellite/[level1page]/[level2page]/[level3page]<code>
+ * <code>http://localhost:8080/cs/Satellite/[level1page]/[level2page]/[level3page]/article/privacy-policy<code>
+ * <code>http://localhost:8080/cs/Satellite/[level1page]/[level2page]/[level3page]/article/privacy-policy/v2<code>
+ * for example.</p>
+ * <p/>
+ * <p>To compute the value of the item-alias and context, aliases must be computed for both content assets and page
+ * assets.  The helper is able to rely heavily on a single aliasing interface to convert between an input asset ID
+ * and an alias, and back from an alias to a list of possible candidate asset IDs.  Without constraining aliases, it is
+ * not possible to deterministically dereference an asset ID from an input alias.  Constraining aliases is not desired.
+ * While this opens the possibility that some aliases can never be resolved, the combination of aliases and context
+ * make it practically impossible.  The only way an alias could not be resolved when used in context is when two
+ * identical aliases exist in the same context.  While a theoretical possibility, when used for URLs, this situation
+ * is illogical and should not occur.  If this situation is detected, this helper class simply guesses that the first
+ * alias found is "good enough" and thus it will be returned.  A warning message is logged. See
+ * {@link AssetAliasingStrategy} for details about how asset aliasing works.</p>
+ * <p/>
+ * <p><strong>Configuration</strong></p>
+ * <p>No properties are required for this assembler to work.  Default values are set for all configuration properties.
+ * However, there are two key properties that should be set in practical cases:</p>
+ * <p>The property {@link #PROPERTY_MAX_DEPTH_PROP_NAME} defines how many levels of navigation placeholders are present
+ * in the Site Plan Tree, so that some pages can be excluded.  The default value of 1 allows a single tier of
+ * placeholders.</p>
+ * <p>The property {@link #PROPERTY_ALIASING_STRATEGY} defines which aliasing strategy to use.  Depending on the asset
+ * model, a variety of strategies can be employed.  If a desired strategy is not already implemented, it is fairly
+ * straight-forward to define custom strategies.  The default strategy, defined in
+ * {@link #PROPERTY_ALIASING_STRATEGY_DEFAULT} simply uses the asset's ID as its alias.  As the most trivial
+ * implementation, it is not particularly compelling for an actual deployment.  The following list describes some of the
+ * strategies that ship with this assembler helper</p>
+ * <ul>
+ * <li>{@link IdAliasingStrategy} uses the asset's ID only</li>
+ * <li>{@link NameAliasingStrategy} uses the asset's name.  Will always generate an alias but may not be usable in
+ * the assembler if spaces are found</li>
+ * <li>{@link PathAliasingStrategy} uses the asset's path.  Path is not a required field in assets to this may not
+ * work without setting values in the asset.  This is, however, the simplest clean solution.</li>
+ * <li>{@link PageMetadataArticleAliasingStrategy} uses the path attribute from an article associated to page assets,
+ * or uses the path attribute for other asset types.</li>
+ * <li>{@link MultilingualPageMetadataArticleAliasingStrategy} uses hte path attribute of an article associated
+ * to the specified page asset, and then translates the article into the locale specified.</li>
+ * </ul>
+ * <p/>
+ * <p><strong>Usage</strong></p>
+ * <p>This helper class needs to be used in two places - when URLs are first created, and when URLs are decomposed and
+ * converted into variables.  In Content Server, URLs are created using the <code>render:gettemplateurl</code> tag.</p>
+ * <p>If the functionality of this class could be integrated into the tag, it could be called automatically.  However,
+ * since it is not the case, it has to be explicitly invoked.  The best place to do this, according to the FirstSite
+ * II rendering model, is in each asset type's <code>Link</code> template.  Typically, it will be called like this:</p>
+ * <code>
+ * [% Helper spHelper = new Helper(ics); %]
+ * [render:gettemplateurl tname="/Layout" wrapper="Wrapper" c='[ics:getvar("c")]' cid='[ics.getvar("cid")]' ... etc ]
+ * [render:argument name='p' value='[ics.GetVar("p")]' /]
+ * [render:argument name='item-context' value='[spHelper.computeItemContext(Long.valueOf(ics.GetVar("p")), "en_US")]'/]
+ * [render:argumane name='item-alias' value='[spHelper.computeAlias(ics.GetVar("c"), ics.GetVar("cid"), "en_US")]'/]
+ * [/render:gettemplateurl]
+ * </code>
+ * <p>URLs are automatically decomposed by Content Server by calling the URL Assembler.  However, it is important that
+ * templates convert item-alias and item-context into cid and p so that they can be used programmatically in various
+ * situations.  One place where this can be done easily is in the wrapper JSP or controller.  It should be noted that
+ * if the wrapper is uncached, some performance degradation will ensue if the alias resolving process accesses the
+ * database, and this needs to be mitigated.  There are various methods of achieving this but they are not discussed
+ * in this document.  Typical usage of cid/p resolution looks like this - often at the very top of the wrapper:</p>
+ * <code>
+ * String itemcontext = ics.GetVar("item-context");
+ * String itemalias = ics.GetVar("item-alias");
+ * String c = ics.GetVar("item-type");
+ * long longP = -1;
+ * long longCid = -1;
+ * <p/>
+ * Helper helper = new Helper(ics);
+ * <p/>
+ * if (itemcontext != null) {
+ * longP = helper.resolvePForItemContext(itemcontext);
+ * if (ics.GetVar("p") != null) {
+ * log.warn("Unexpected value of p found in conjunction with itemcontext:"+ics.GetVar("p")+", "+ics.GetVar("item-context")+".  Ignoring item-context.");
+ * }
+ * else {
+ * log.debug("Setting decoded P from item-context: "+itemcontext);
+ * ics.SetVar("p", Long.toString(longP));
+ * }
+ * }
+ * if (itemalias != null) {
+ * longCid = helper.resolveCidFromAlias(c, itemalias, longP);
+ * if (ics.GetVar("cid") != null) {
+ * log.warn("Unexpected value of cid found in conjunction with itemalias:"+ics.GetVar("cid")+", "+ics.GetVar("item-alias")+".  Ignoring itemalias.");
+ * }
+ * else {
+ * log.debug("Setting decoded cid from item-alias: "+itemalias);
+ * ics.SetVar("cid", Long.toString(longCid));
+ * }
+ * }
+ * </code>
  *
  * @author Tony Field
  * @since Jun 1, 2009
@@ -56,32 +143,40 @@ public class Helper
      * in the site plan to be used when calculating ppath and when resolving ppath.
      * This property is 0-based, so if you want to include all SitePlan pages,
      * set the property to 0.
+     *
+     * @see #PROPERTY_MAX_DEPTH_PROP_NAME_DEFAULT
      */
     public static final String PROPERTY_MAX_DEPTH_PROP_NAME = "com.fatwire.developernet.uri.siteplan.helper.lowest-level-to-include";
 
     /**
+     * The default value of the {@link #PROPERTY_MAX_DEPTH_PROP_NAME} if not otherwise specified.
+     * The default value is 1, which supports a single level of navigation placeholder pages
+     * in the SitePlanTree - the most common configuration.
+     *
+     * @see #PROPERTY_MAX_DEPTH_PROP_NAME
+     */
+    public static final String PROPERTY_MAX_DEPTH_PROP_NAME_DEFAULT = "1";
+
+    /**
      * Property specifying the asset aliasing strategy to use.  Specify the classname for the strategy.
+     *
+     * @see #PROPERTY_ALIASING_STRATEGY_DEFAULT
      */
     public static final String PROPERTY_ALIASING_STRATEGY = "com.fatwire.developernet.uri.siteplan.helper.aliasing-strategy-class";
 
     /**
      * Default value for the {@link #PROPERTY_ALIASING_STRATEGY} property.
      */
-    public static final String PROPERTY_ALIASING_STRATEGY_DEFAULT = PathAliasingStrategy.class.getName();
-
-    /**
-     * The default value of the {@link #PROPERTY_MAX_DEPTH_PROP_NAME} if not otherwise specified.
-     * The default value is 1, which supports a single level of navigation placeholder pages
-     * in the SitePlanTree - the most common configuration.
-     */
-    public static final String PROPERTY_MAX_DEPTH_PROP_NAME_DEFAULT = "1";
+    public static final String PROPERTY_ALIASING_STRATEGY_DEFAULT = IdAliasingStrategy.class.getName();
 
     private final int lowestLevelToInclude;
     private final ICS ics;
     private final AssetAliasingStrategy translator;
 
     /**
-     * Helper class for looking up cpath and ppath in URLs.
+     * Helper class for looking up cpath and ppath in URLs.  This class contains a reference to the ICS context and
+     * must be released prior to the destruction of the ICS object.  Typically, instantiating a new instance for each
+     * JSP is sufficient.  In the case of a reusable controller, it should be re-instantiated on each request.
      *
      * @param ics context.
      */
@@ -150,17 +245,17 @@ public class Helper
     }
 
     /**
-     * Given an input c/cid pair, compute (/look up) the cpath for that asset.
+     * Given an input c/cid pair, compute (/look up) the alias for that asset.
      * <p/>
      * This function is not to be called from within the assembler, but within
      * Content Server.
      * <p/>
-     * The return value may be null, indicating that no cpath exists.
+     * The return value may be null, indicating that no alias exists.
      *
      * @param c asset type
      * @param cid asset id
-     * @param localeName name of the locale for which the path should be computed
-     * @return path for the asset, or else null
+     * @param localeName name of the locale for which the alias should be computed
+     * @return alias for the asset, or else null
      */
     public String computeAlias(String c, long cid, String localeName)
     {
@@ -184,16 +279,15 @@ public class Helper
 
     /**
      * Given an input page asset id, create a breadcrumb-like path structure
-     * for it.  If any page asset does not have a path specified, no path is returned.
+     * for it.  If any page asset does not have an alias specified, no context is returned.
      * <p/>
-     * Note that the path for each individual element is computed using the {@link #computeAlias}
-     * method defined above.  This allows for the path attribute to be provided in various ways,
+     * Note that the value for each individual element is computed using the {@link #computeAlias}
+     * method defined above.  This allows for the alias attribute to be provided in various ways,
      * such as by looking up the "path" field or by looking up the "path" field of an associated asset.
      *
      * @param p page id
-     * the publication itself, Level 1 is typically "Placed" or "Unplaced".
-     * @param localeName name of locale
-     * @return path or null
+     * @param localeName name of locale (like en_US)
+     * @return context or null
      */
     public String computeItemContext(long p, final String localeName)
     {
@@ -236,8 +330,7 @@ public class Helper
                 {
                     if(LOG.isTraceEnabled())
                     {
-                        LOG.trace("_pruneNodePathAndReverse: looping over nodepath parents, hit Publication node.  " +
-                                  "We must be at the top of the list.  Aborting loop. nid:" + nid + " pubid:" + oid);
+                        LOG.trace("_pruneNodePathAndReverse: looping over nodepath parents, hit Publication node.  " + "We must be at the top of the list.  Aborting loop. nid:" + nid + " pubid:" + oid);
                     }
                     break nodelist;
                 }
@@ -271,9 +364,7 @@ public class Helper
             {
                 if(LOG.isTraceEnabled())
                 {
-                    LOG.trace("_pruneNodePathAndReverse: Lowest level to include is set to a level that " +
-                              "is greater than the total number of elements in the breadcrumb.  " +
-                              "List size: " + list.size() + ", lowest level to include: " + lowestLevelToInclude);
+                    LOG.trace("_pruneNodePathAndReverse: Lowest level to include is set to a level that " + "is greater than the total number of elements in the breadcrumb.  " + "List size: " + list.size() + ", lowest level to include: " + lowestLevelToInclude);
                 }
             }
         }
@@ -319,7 +410,7 @@ public class Helper
     /**
      * Resolve the variable "p" for a given ppath.
      *
-     * @param item_context ppath as computed in computePpath above.
+     * @param item_context item_context as computed in computePpath above.
      * @return ID of page asset
      */
     public long resolvePForItemContext(String item_context)
@@ -336,8 +427,9 @@ public class Helper
     /**
      * Resolve the dimension for a given ppath.
      *
-     * @param item_context ppath as computed in computePpath above.
-     * @return dimension used to compute the input ppath. May be null if locale was not used to compute the ppath.
+     * @param item_context item_context as computed in computePpath above.
+     * @return dimension used to compute the input item_context. May be null if locale was not used to compute the
+     *         item_context.
      */
     public Dimension resolveDimensionForItemContext(String item_context)
     {
@@ -350,6 +442,16 @@ public class Helper
         return result.getDim();
     }
 
+    /**
+     * Given an input asset type, alias, and p, resolve
+     * cid.  Essentially this looks for c/alias pairs connected
+     * to a specified p asset.
+     *
+     * @param c asset type of asset to resolve
+     * @param alias of asset to resolve
+     * @param p page to which the asset is associated
+     * @return id of asset.  Never null.  If not resolvable, an exception is thrown (as this should never occur)
+     */
     public long resolveCidFromAlias(String c, String alias, long p)
     {
         if(LOG.isDebugEnabled())

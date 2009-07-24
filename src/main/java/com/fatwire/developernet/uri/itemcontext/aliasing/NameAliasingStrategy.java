@@ -30,7 +30,11 @@ import java.util.*;
  * specified asset to look up the value to be used in the URL.
  * <p/>
  * This is not the prettiest assembler to use but it is guaranteed to
- * always be set so it is good for testing.
+ * always be set so it is good for testing.  It does not require any
+ * configuration
+ *
+ * @author Tony Field
+ * @since Jun 1, 2009
  */
 public class NameAliasingStrategy implements AssetAliasingStrategy
 {

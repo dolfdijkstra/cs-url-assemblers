@@ -11,6 +11,7 @@ package com.fatwire.developernet.uri.itemcontext;
 import com.fatwire.cs.core.uri.*;
 import com.fatwire.cs.core.uri.Definition.ContainerType;
 import com.fatwire.developernet.uri.lightweight.LightweightAbstractAssembler;
+import com.fatwire.developernet.uri.siteplan.Helper;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -19,6 +20,15 @@ import java.net.URISyntaxException;
 import java.util.*;
 
 /**
+ * <p>Generalized URL Assembler useful for converting an item of a specific type and its context into a
+ * folder-like, easy-to-read URL and back.  It intentionally does not intend to make any assumptions about
+ * what constitutes the context or the item placed in that context.  Mapping these abstract entities into
+ * concrete objects used by the site implementation is the responsibility of the user.  Often translation
+ * helper libraries may be utilized for this purpose.  See {@link com.fatwire.developernet.uri.itemcontext.aliasing}
+ * and {@link Helper} for examples.  This assembler supports automatic unpacking of arguments from packedargs,
+ * automatic detection of required parameters in packedargs, integer <code>variant</code> identifiers for
+ * multivariate testing, and asset type aliasing, all in addition to the specified core features.</p>
+ * <p/>
  * <p>In this assembler, URLs have the following form:
  * <code>{protocol}://{domain}/{context path}/{servlet name}/{item-context}/{item-type}/{item-alias}/v{variant number}</code>.
  * </p>
@@ -28,6 +38,8 @@ import java.util.*;
  * as follows:
  * <code>[{protocol}://{domain}]/{context path}/{servlet name}/{item-context}[/{item-type}/{item-alias}][/v{variant number}]</code>.
  * where [] denote optional components.</p>
+ * <p>It is also possible that {context path} and {servlet name} can be compressed out of existence, but this is a
+ * server configuration matter and is not addressed in this document.</p>
  * <p>In most use cases, the {item-context} maps to the BurlingtonFinancial and FirstSiteII rendering
  * models' <code>p</code> variable.  The {item-type} maps to the asset type, or <code>c</code>, and
  * the {item-alias} maps to the asset id, or <code>cid</code>.  However, it may also be the case that the
@@ -41,13 +53,13 @@ import java.util.*;
  * context root is blank.)</li>
  * <li>http://localhost/cm/company/news/press-releases/2009/08/03/civic-holiday.html (In this example, {context path
  * is null, and the Satellite servlet is referenced using a url-pattern of "cm". This is configured in web.xml).</li>
- * <li>http://localhost/cm/company/media/press-kit/downloads/logo-full (In this example, the path to the asset
+ * <li>http://localhost/cm/company/media/press-kit/policies/logo-full (In this example, the path to the asset
  * in the site plan tree is <code>company/media/press-kit</code>, and thus that denotes the {item-context} for the URL.
- * It is defined by the variable <code>p</code>.  The value of <code>p</code> would be the id of the <code>press-kit</code>
- * page placed under the <code>media</code> page..  The asset type alias is <code>downloads</code> which will probably
- * map to an asset type like <code>Document</code> or <code>PDF</code>, corresponding to the variable <code>c</code>.
- * Finally, the {item-alias} parameter maps to <code>logo-full</code> which maps to an individual asset, corresponding to
- * the <code>cid</code> variable.</li>
+ * It is defined by the variable <code>p</code>.  The value of <code>p</code> would be the id of the
+ * <code>press-kit</code> page placed under the <code>media</code> page..  The asset type alias is <code>policies</code>
+ * which will probably map to an asset type like <code>Policy</code> or <code>Article</code>, corresponding to the
+ * variable <code>c</code>.  Finally, the {item-alias} parameter maps to <code>logo-full</code> which maps to an
+ * individual asset, corresponding to the <code>cid</code> variable.</li>
  * <li>http://localhost/cs/Satellite/brand-x/catalogue/electronics/audio-players/ipod/v2</li>
  * </ul>
  * <p>It is the intent that this assembler could be used to assemble any URL that utilizes
@@ -55,62 +67,64 @@ import java.util.*;
  * to uniquely identify every page on the site.  It was also designed with support for multi-element
  * (i.e. multiple slashes) values for both {item-context} and {item-alias}.  However, only
  * a single path element is permitted for {item-type}.</p>
- * <p>This assembler must be used in conjunction with a helper class that is called from
+ * <p>As described above, this assembler is typically used in conjunction with a helper class that is called from
  * within Content Server to calculate {item-context} and {item-alias} when links are being
  * created, as well as to resolve the original source variables (like <code>c</code>,
  * <code>cid</code>, and <code>p</code> for example) when the page is parsed.  If the
  * FirstSiteII rendering model or a related rendering model is being used, this typically
  * means that the computation of {item-context} and {item-alias} is done in the <code>Link</code>
- * templates, and the decoding is done in the <code>Wrapper</code> templates.</p>
+ * templates, and the decoding is done in the <code>Wrapper</code> templates.  FirstSiteII and BurlingtonFinancial
+ * rendering model sites can make use of teh {@link Helper} class which
+ * does this mapping bi-directionally, with multiple, pluggable aliasing strategies.</p>
  * <p>If decoding happens in a template that is uncached, it may be required for the decoder
  * to have built-in caching support.</p>
- * <p>Helper classes are independent of this assembler, though it is likely that a SitePlanHelper will ship
- * alongside this assembler.</p> TODO: document this.
+ * <p/>
+ * <p><strong>What is Not Supported</strong></p>
+ * <p>This assembler does NOT support BlobServer URLs using the structure above.  BlobServer URLs are delegated
+ * to a fallback assembler which can be configured.  The default fallback assembler is the {@link QueryAssembler}.</p>
+ * <p>This assembler does not support direct rendering through Content Server.  Only Satellite Server URLs will be
+ * properly decoded.  If a URL requiring the Content Server satellite context is passed to the {@link #assemble} method,
+ * this assembler will delegate decoding to the fallback assembler.</p>
  * <p/>
  * <p><strong>Requirements</strong></p>
- * <p>Note: This assembler does NOT support BlobServer URLs using the structure above.  BlobServer URLs are delegated
- * to a fallback assembler which can be configured, or defaults back to the QueryAssmbler.  This assembler is hard-wired
- * to require Satellite Server rendering pages.  Other types of URLs will be delegated to another assembler.</p>
+ * <p>For definitions to be assembled into URLs, the following requirements apply:</p>
+ * <ul>
+ * <li>item-context must be set</li>
+ * <li>item-type or c must be set</li>
+ * <li>item-alias must be set</li>
+ * <li>SatelliteContext must be set to Satellite Server</li>
+ * <li>AppType must be set to Content Server</li>
+ * <li>pagename must be set to the value corresponding to the {@link #PROP_GLOBAL_WRAPPER_PAGENAME} property</li>
+ * <li>childpagename must be set to the value corresponding to the {@link #PROP_GLOBAL_TEMPLATE_PAGENAME} property</li>
+ * <li>Spaces are not present in any of item-context, item-type, or item-alias</li>
+ * </ul>
+ * <p>As indicated above, if item-type is not specified, it is possible to use the variable <code>c</code> instead.
+ * Upon disassembly, both item-type and c will be re-populated.</p>
+ * <p>In addition, item-context, item-type, item-alias and variant will be detected if present as independent parameters
+ * or if they are encoded in the packedargs parameter.</p>
  * <p/>
+ * <p>For URIs to be decoded properly into Definitions, the following requirements apply:</p>
+ * <ul>
+ * <li>The URL path must start with the value of the {@link #PROP_URIBASE_SATELLITE_SERVER} property</li>
+ * <li>The path must contain at least one path element</li>
+ * <li>None of the parameters that are normally embedded in the URL may be present as query string parameters</li>
+ * </ul>
+ * <p>If item-alias and item-type are omitted from the URL, the last context element is used as the item-alias, and
+ * the item-type is set to the value of the {@link #PROP_ITEM_TYPE_FOR_CONTEXT} property, which defaults to a value
+ * of {@link #PROP_ITEM_TYPE_FOR_CONTEXT_DEFAULT}.</p>
  * <p/>
- * todo: finish documentation
- * <p/>
- * make note that this will check c if item-type is not set, and will re-populate both c and item-type as the same value
- * <p/>
- * <p/>
- * <p/>
- * <p>These three variable elements - page path, asset type, and asset name, are the key
- * variables required to map to the standard rendering variables c, cid, and p.
- * On assembly, the assembler will look for "item-context", "c", and "cpath" variables.
- * If they are found, it will attempt to assemble the URL.  If they are not found,
- * no attempt will be made.</p>
- * <p>Variant is an optional parameter that exists to support multivariate testing.  The
- * value it is set to must be an integer, but the parameter is optional.</p>
- * <p/>
- * <p>This assembler supports aliases for the asset types, so instead of rendering "Page",
- * an alternate string could be used instead.  The same would apply to other asset types.
- * This mapping is configured via properties.</p>
- * <p/>
- * <p>This assembler is designed only to work with Satellite URLs for page content.  No
- * other URL types are supported by this assembler.</p>
- * <p/>
- * <p>On disassembly, at least 3 elements must be found in the path info.  Secondly, the
- * second-last element must be a registered asset type.  (How registration is done can
- * be left to the developer, however it must be property-based.)</p>
- * <p>In order that item-context and cname arrive in the URL as available parameters, they must
- * be set into the render:gettemplateurl tag as arguments in each asset's link template.
- * To ensure they are set consistently, a java function accompanies this class and should
- * be called in each Link template.</p>
- * <p>In order that item-context and cname are appropriately resolved, the decoding function needs
- * to be called in teh wrapper/controller.</p>
- * <p>Configuration</p>
- * <table>
- * <tr><th>property</th><th>value</th></tr>
- * <tr><td>uri.assembler.SitePlanPpathCCpathAssembler.assettype.lookup.[TYPE]</td><td>asset type alias for asset type [TYPE]</td></tr>
- * <tr><td>uri.assembler.SitePlanPpathCCpathAssembler.assettype.alias.[ALIAS]</td><td>asset type name for asset type aliase [ALIAS]</td></tr>
- * <tr><td>uri.assembler.SitePlanPpathCCpathAssembler.layout.[domain name [:port]]</td><td>name of template for layout to be used for the domain name specified.  The port should be specified if it is in the URL.</td></tr>
- * <tr><td>uri.assembler.SitePlanPpathCCpathAssembler.wrapper.[domain name [:port]]</td><td>name of site entry for wrapper template to be used for the domain specified.  This is the default site entry value.</td></tr>
- * </table>
+ * <p><strong>Configuration</strong></p>
+ * <p>This assembler depends on some main configuration properties.  Content Server version 7 requires these properties
+ * to be set in the ServletRequest.properties file.</p>
+ * <p>The item type aliasing needs to be  defined for each item type to be converted by this assembler.  See
+ * {@link #PROP_ITEM_TYPE_PARAMETER_PREFIX} and {@link #PROP_ITEM_TYPE_ALIAS_PREFIX} for details.</p>
+ * <p>Item type for contexts must also be configured if the default value is not desired.
+ * See {@link #PROP_ITEM_TYPE_FOR_CONTEXT} for details.</p>
+ * <p>The required template name and wrapper name also need to be configured.  This assembler will only be executed if
+ * these parameters are set to the configured values.  See {@link #PROP_GLOBAL_WRAPPER_PAGENAME} and
+ * {@link #PROP_GLOBAL_TEMPLATE_PAGENAME} for details.</p>
+ * <p>The list of parameters to always be unpacked from packedargs can optionally be configured.  See
+ * {@link #PROP_ALWAYS_UNPACK_ARGS} for details.
  *
  * @author Tony Field
  * @since May 14, 2009
@@ -119,12 +133,47 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
 {
     private static final Log LOG = LogFactory.getLog("com.fatwire.developernet.uri.itemcontext");
 
+    /**
+     * <p>Prefix of the property used to define which alias is to be used by the item type appended to this prefix.</p>
+     * <p>e.g. com.fatwire.developernet.uri.itemcontext.item-type.parameter.FW_Content_C = article</p>
+     */
     public static final String PROP_ITEM_TYPE_PARAMETER_PREFIX = "com.fatwire.developernet.uri.itemcontext.item-type.parameter.";
+
+    /**
+     * <p>Prefix of the property used to define which item type to use for the item alias appended to this prefix.</p>
+     * <p>e.g. com.fatwire.developernet.uri.itemcontext.item-type.alias.article = FW_Content_C</p>
+     */
     public static final String PROP_ITEM_TYPE_ALIAS_PREFIX = "com.fatwire.developernet.uri.itemcontext.item-type.alias.";
+
+    /**
+     * Property defining the item type to be used when no item alias is found in the URL's pathinfo.  The last element
+     * of the context is used as the item-alias and this property defines which item-type to use.
+     *
+     * @see #PROP_ITEM_TYPE_FOR_CONTEXT_DEFAULT
+     */
     public static final String PROP_ITEM_TYPE_FOR_CONTEXT = "com.fatwire.developernet.uri.itemcontext.item-type-parameter-for-context";
+
+    /**
+     * Default value of the item type to use when item-alias is not found in pathinfo.  Default value is Page.
+     *
+     * @see #PROP_ITEM_TYPE_FOR_CONTEXT
+     */
     public static final String PROP_ITEM_TYPE_FOR_CONTEXT_DEFAULT = "Page";
+
+    /**
+     * Property defining the required value of Pagename to be used if this assembler is to be used.
+     */
     public static final String PROP_GLOBAL_WRAPPER_PAGENAME = "com.fatwire.developernet.uri.itemcontext.global-wrapper-pagename";
+
+    /**
+     * Property defining the requried value of the template's pagename to be used if this assembler is to be used.
+     */
     public static final String PROP_GLOBAL_TEMPLATE_PAGENAME = "com.fatwire.developernet.uri.itemcontext.global-template-pagename";
+
+    /**
+     * Comma-separated list of variable names to be always removed from packedargs and displayed as query string
+     * parameters.  This helps remove packedargs from the query string.  No default values are ever set.
+     */
     public static final String PROP_ALWAYS_UNPACK_ARGS = "com.fatwire.developernet.uri.itemcontext.nopack-args";
 
     private final Assembler theBackupAssembler = new QueryAssembler();
@@ -162,6 +211,12 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
         return constructURI(scheme, authority, path, quotedQueryString, fragment);
     }
 
+    /**
+     * Main worker function for assembly of the URL.
+     *
+     * @param definition input definition
+     * @return path for URL
+     */
     private String _getPath(Definition definition)
     {
         if(definition.getAppType() != Definition.AppType.CONTENT_SERVER)
@@ -435,6 +490,12 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
         return result;
     }
 
+    /**
+     * Main worker function for URL disassembly.  Parses path and adds params back into the list of parameters.
+     *
+     * @param uri input URI
+     * @return may of parameters
+     */
     protected Map<String, String[]> getQueryParams(URI uri)
     {
         String uripath = uri.getPath();
@@ -607,11 +668,23 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
     }
 
 
+    /**
+     * Given an item alias, return the item type.
+     *
+     * @param alias input alias
+     * @return item type or null if not configured
+     */
     private String itemTypeNameFromAlias(String alias)
     {
         return getProperty(PROP_ITEM_TYPE_ALIAS_PREFIX + alias, null);
     }
 
+    /**
+     * Given an item type, return its alias
+     *
+     * @param atName item type name
+     * @return alias or null if not configured
+     */
     private String aliasFromItemTypeName(String atName)
     {
         return getProperty(PROP_ITEM_TYPE_PARAMETER_PREFIX + atName, null);

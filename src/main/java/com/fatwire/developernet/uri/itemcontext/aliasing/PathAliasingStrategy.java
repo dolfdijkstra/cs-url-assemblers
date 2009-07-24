@@ -29,7 +29,11 @@ import java.util.*;
 
 /**
  * This translator simply uses the <code>path</code> attribute of the
- * specified asset to look up the value to be used in the URL.
+ * specified asset to look up the value to be used in the URL.  It does
+ * not require any configuration.
+ *
+ * @author Tony Field
+ * @since Jun 1, 2009
  */
 public class PathAliasingStrategy implements AssetAliasingStrategy
 {

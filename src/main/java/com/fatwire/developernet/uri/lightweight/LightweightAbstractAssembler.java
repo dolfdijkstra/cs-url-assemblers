@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2008 FatWire Corporation. All Rights Reserved.
+ * Title, ownership rights, and intellectual property rights in and
+ * to this software remain with FatWire Corporation. This  software
+ * is protected by international copyright laws and treaties, and
+ * may be protected by other law.  Violation of copyright laws may
+ * result in civil liability and criminal penalties.
+ */
 package com.fatwire.developernet.uri.lightweight;
 
 import com.fatwire.cs.core.uri.Assembler;
@@ -71,6 +79,13 @@ public abstract class LightweightAbstractAssembler implements Assembler
         }
     }
 
+    /**
+     * Convenience method to get a property value set into the assembler from the configuration files.
+     *
+     * @param name name of property to import
+     * @param dephault default value of property - returned if the property value is not specified
+     * @return property value or dephault value
+     */
     protected String getProperty(String name, String dephault)
     {
         String result = properties.get(name);
@@ -219,12 +234,7 @@ public abstract class LightweightAbstractAssembler implements Assembler
 
         if(LOG.isDebugEnabled())
         {
-            LOG.trace("Constructing new URI using the following components: \n" +
-                      "scheme=" + scheme + " \n" +
-                      "authority=" + authority + " \n" +
-                      "path=" + path + " \n" +
-                      "query=" + quotedQueryString + " \n" +
-                      "fragment=" + fragment);
+            LOG.trace("Constructing new URI using the following components: \n" + "scheme=" + scheme + " \n" + "authority=" + authority + " \n" + "path=" + path + " \n" + "query=" + quotedQueryString + " \n" + "fragment=" + fragment);
 
             LOG.debug("Assembled URI: " + uri.toASCIIString());
         }
@@ -240,7 +250,7 @@ public abstract class LightweightAbstractAssembler implements Assembler
      * value, not a single <code>String</code> value</em>
      * This provides support for query
      * strings with multiple values for a given parameter name.
-     *
+     * <p/>
      * This decoding method is smart enough to be able to interpret the <code>_charset_</code>
      * URL parameter that is often used by IE.
      *

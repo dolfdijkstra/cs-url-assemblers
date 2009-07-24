@@ -14,6 +14,9 @@ import com.fatwire.mda.Dimension;
 /**
  * Container relating the asset ID that is a candidate for having created part of the path, with
  * the effective dimension used to create it.
+ *
+ * @author Tony Field
+ * @since Jun 1, 2009
  */
 public class CandidateInfo
 {
