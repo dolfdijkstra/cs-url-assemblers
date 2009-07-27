@@ -24,12 +24,15 @@ import java.util.List;
 public interface AssetAliasingStrategy
 {
     /**
-     * Given an asset ID, compute the alias for that asset
+     * Given an asset ID, compute the alias for that asset.  It is not an
+     * error if it is not possible to return an alias.  In that case,
+     * null is returned.
      *
      * @param id Asset ID
      * @param localeName name of locale to find the path for.  Null is allowed,
      * in which case to translation is sought.
-     * @return alias string fragment
+     * @return alias string fragment.  If null is returned, it means that
+     * no alias could be computed.
      */
     String computeAlias(AssetId id, String localeName);
 
