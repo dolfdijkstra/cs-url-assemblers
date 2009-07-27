@@ -174,6 +174,88 @@ public class Helper
     private final AssetAliasingStrategy translator;
 
     /**
+     * Utility function for automatically resolving standardized variable names, and populating the ICS context with
+     * the results.  This function is useful when using the ItemContext  Assembler for standard site plan-based sites,
+     * for which limited customization and reporting is required.  This replaces the variable resolution code described
+     * above in order to simplify integration.
+     * <p/>
+     * If this over-simplifies what needs to be done for a given site, rather than using this shortcut method, make the
+     * resolution calls individually.
+     * <p/>
+     * This method performs the following 4 functions:
+     * <ul>
+     * <li> Sets the variable "c" to the value of the variable "item-type"</ul>
+     * <li> Sets the variable "p" to the value of the result of the call <code>helper.resolvePForItemContext(ics.GetVar("item-context"))</code></li>
+     * <li> Sets the variable "cid" to the value of the call <code>helper.resolveCidFromAlias(ics.GetVar("c"), ics.GetVar("item-alias"), ics.GetVar("p"))</code></li>
+     * <li> Returns a Dimension asset corresponding to the locale of the item-context, if it is possible to determine it,
+     * otherwise returns null. (basically just calls <code>helper.resolveDimensionForItemContext(ics.GetVar("item-context"))</code>.)</li>
+     * </ul>
+     * <p/>
+     * If there is a problem resolving the variables, as described below, an exception is thrown.
+     * <p/>
+     * This method logs to the <code>com.fatwire.developernet.uri.siteplan.helper</code> logger.
+     *
+     * @param ics ICS context, containing <code>item-context</code>, <code>item-type</code>, and <code>item-alias</code> variables.
+     * The resultant <code>c</code>, <code>cid</code>, <code>p</code> variables will be populated
+     * into this upon successful execution.
+     * @return Dimension corresponding to the asset referred to by the <code>item-alias</code>, if known.  Otherwise, returns null.
+     */
+    public static Dimension resolveItemContextAliasesAndPopulateIcs(ICS ics)
+    {
+        Helper helper = new Helper(ics);
+
+        String item_context = ics.GetVar("item-context");
+        Dimension dimension = null;
+        long longP = -1L;
+        if(item_context != null)
+        {
+            if(ics.GetVar("p") != null)
+            {
+                LOG.warn("Unexpected value of p found in conjunction with item-context:" + ics.GetVar("p") + ", " + item_context + ".  Ignoring item-context.");
+            }
+            else
+            {
+                // Minor cheat here in the static helper function:
+                // instead of just calling the same function twice,
+                // once to get 'p' and another time to get 'Dimension',
+                // just use the internal worker function that does
+                // both.  End users will not notice unless they parse
+                // logs and count queries.
+                CandidateInfo result = helper._resolvePForItemContext(item_context);
+                longP = result.getId().getId();
+                dimension = result.getDim();
+                ics.SetVar("p", Long.toString(longP));
+                if(LOG.isDebugEnabled())
+                {
+                    LOG.debug("Populated ICS with resolved p:" + longP + " from item-context:" + item_context);
+                    LOG.debug("About to return dimension: " + dimension + " from item-context:" + item_context);
+                }
+            }
+        }
+
+        String c = ics.GetVar("item-type");
+        String item_alias = ics.GetVar("item-alias");
+        if(item_alias != null)
+        {
+            if(ics.GetVar("cid") != null)
+            {
+                LOG.warn("Unexpected value of cid found in conjunction with item-alias:" + ics.GetVar("cid") + ", " + item_alias + ".  Ignoring item-alias.");
+            }
+            else
+            {
+                long longCid = helper.resolveCidFromAlias(c, item_alias, longP);
+                ics.SetVar("cid", Long.toString(longCid));
+                if(LOG.isDebugEnabled())
+                {
+                    LOG.debug("Populated ICS with resolved cid:" + longCid + " from item-alias:" + item_alias);
+                }
+            }
+        }
+
+        return dimension;
+    }
+
+    /**
      * Helper class for looking up cpath and ppath in URLs.  This class contains a reference to the ICS context and
      * must be released prior to the destruction of the ICS object.  Typically, instantiating a new instance for each
      * JSP is sufficient.  In the case of a reusable controller, it should be re-instantiated on each request.
