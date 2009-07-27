@@ -33,9 +33,9 @@ import java.util.*;
  * is appropriate.  In other words, <code>item-context</code> can be mapped to
  * <code>[level1page]/[level2page]/[level3page]</code>.
  * This can result in URLs that look like the following:
- * <code>http://localhost:8080/cs/Satellite/[level1page]/[level2page]/[level3page]<code>
- * <code>http://localhost:8080/cs/Satellite/[level1page]/[level2page]/[level3page]/article/privacy-policy<code>
- * <code>http://localhost:8080/cs/Satellite/[level1page]/[level2page]/[level3page]/article/privacy-policy/v2<code>
+ * <code>http://localhost:8080/cs/Satellite/[level1page]/[level2page]/[level3page]</code>
+ * <code>http://localhost:8080/cs/Satellite/[level1page]/[level2page]/[level3page]/article/privacy-policy</code>
+ * <code>http://localhost:8080/cs/Satellite/[level1page]/[level2page]/[level3page]/article/privacy-policy/v2</code>
  * for example.</p>
  * <p/>
  * <p>To compute the value of the item-alias and context, aliases must be computed for both content assets and page
@@ -79,21 +79,23 @@ import java.util.*;
  * <p>If the functionality of this class could be integrated into the tag, it could be called automatically.  However,
  * since it is not the case, it has to be explicitly invoked.  The best place to do this, according to the FirstSite
  * II rendering model, is in each asset type's <code>Link</code> template.  Typically, it will be called like this:</p>
- * <code>
+ * <pre>
  * [% Helper spHelper = new Helper(ics); %]
  * [render:gettemplateurl tname="/Layout" wrapper="Wrapper" c='[ics:getvar("c")]' cid='[ics.getvar("cid")]' ... etc ]
  * [render:argument name='p' value='[ics.GetVar("p")]' /]
  * [render:argument name='item-context' value='[spHelper.computeItemContext(Long.valueOf(ics.GetVar("p")), "en_US")]'/]
  * [render:argumane name='item-alias' value='[spHelper.computeAlias(ics.GetVar("c"), ics.GetVar("cid"), "en_US")]'/]
  * [/render:gettemplateurl]
- * </code>
+ * </pre>
  * <p>URLs are automatically decomposed by Content Server by calling the URL Assembler.  However, it is important that
  * templates convert item-alias and item-context into cid and p so that they can be used programmatically in various
  * situations.  One place where this can be done easily is in the wrapper JSP or controller.  It should be noted that
  * if the wrapper is uncached, some performance degradation will ensue if the alias resolving process accesses the
  * database, and this needs to be mitigated.  There are various methods of achieving this but they are not discussed
- * in this document.  Typical usage of cid/p resolution looks like this - often at the very top of the wrapper:</p>
- * <code>
+ * in this document.  The following shortcut should be suitable in most cases (this goes at the top of the wrapper):</p>
+ * <code>Helper.resolveItemContextAliasesAndPopulateIcs(ics);</code>
+ * <p>More flexible  cid/p resolution looks like this - often at the very top of the wrapper:</p>
+ * <pre>
  * String itemcontext = ics.GetVar("item-context");
  * String itemalias = ics.GetVar("item-alias");
  * String c = ics.GetVar("item-type");
@@ -122,7 +124,7 @@ import java.util.*;
  * ics.SetVar("cid", Long.toString(longCid));
  * }
  * }
- * </code>
+ * </pre>
  *
  * @author Tony Field
  * @since Jun 1, 2009
