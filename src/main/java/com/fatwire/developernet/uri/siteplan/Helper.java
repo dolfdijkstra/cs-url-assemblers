@@ -217,13 +217,7 @@ public class Helper
             }
             else
             {
-                // Minor cheat here in the static helper function:
-                // instead of just calling the same function twice,
-                // once to get 'p' and another time to get 'Dimension',
-                // just use the internal worker function that does
-                // both.  End users will not notice unless they parse
-                // logs and count queries.
-                CandidateInfo result = helper._resolvePForItemContext(item_context);
+                CandidateInfo result = helper.resolveItemContext(item_context);
                 longP = result.getId().getId();
                 dimension = result.getDim();
                 ics.SetVar("p", Long.toString(longP));
@@ -500,7 +494,7 @@ public class Helper
     public long resolvePForItemContext(String item_context)
     {
         LOG.debug("resolvePForItemContext: Attempting to resolve P for ppath: " + item_context);
-        CandidateInfo result = _resolvePForItemContext(item_context);
+        CandidateInfo result = resolveItemContext(item_context);
         if(LOG.isDebugEnabled())
         {
             LOG.debug("resolvePForItemContext: Found matching asset for ppath: " + item_context + ": " + result);
@@ -518,7 +512,7 @@ public class Helper
     public Dimension resolveDimensionForItemContext(String item_context)
     {
         LOG.debug("resolveDimensionForItemContext: Attempting to resolve P for ppath: " + item_context);
-        CandidateInfo result = _resolvePForItemContext(item_context);
+        CandidateInfo result = resolveItemContext(item_context);
         if(LOG.isDebugEnabled())
         {
             LOG.debug("resolveDimensionForItemContext: Found matching asset for ppath: " + item_context + ": " + result);
@@ -602,9 +596,9 @@ public class Helper
      * @return the matching candidate
      * @throws CSRuntimeException in case no match can be found.
      */
-    private CandidateInfo _resolvePForItemContext(String item_context)
+    CandidateInfo resolveItemContext(String item_context)
     {
-        LOG.trace("_resolvePForItemContext: Attempting to resolve P for ppath: " + item_context);
+        LOG.trace("resolveItemContext: Attempting to resolve P for ppath: " + item_context);
         if(item_context == null)
         {
             throw new IllegalArgumentException("Null ppath not allowed");
@@ -621,7 +615,7 @@ public class Helper
             {
                 if(LOG.isTraceEnabled())
                 {
-                    LOG.trace("_resolvePForItemContext: Found matching asset for ppath: " + item_context + ": " + rightmostCandidate);
+                    LOG.trace("resolveItemContext: Found matching asset for ppath: " + item_context + ": " + rightmostCandidate);
                 }
                 return rightmostCandidate;
             }
