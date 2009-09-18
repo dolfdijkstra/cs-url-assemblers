@@ -38,7 +38,7 @@ public final class LangSiteHelper
     private final ICS ics;
     private final Helper helper;
 
-    LangSiteHelper(ICS ics)
+    public LangSiteHelper(ICS ics)
     {
         this.ics = ics;
         helper = new Helper(ics);
