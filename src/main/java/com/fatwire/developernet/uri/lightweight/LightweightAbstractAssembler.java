@@ -408,21 +408,24 @@ public abstract class LightweightAbstractAssembler implements Assembler
                 // Loop through the values for the parameter
                 for(String val : vals)
                 {
-                    // Append the correct separator
-                    if(qryStr.length() > 0)
+                    if(val != null && val.length() > 0)
                     {
-                        qryStr.append('&');
-                    }
+                        // Append the correct separator
+                        if(qryStr.length() > 0)
+                        {
+                            qryStr.append('&');
+                        }
 
-                    // Append the name and value to the URL
-                    if(LOG.isTraceEnabled())
-                    {
-                        StringBuilder bf = new StringBuilder("About to add [key]=[value] to url [" + key + "]=[" + val + "]");
-                        bf.append(" after encoding: [").append(encode(key)).append("]=[").append(encode(val)).append("]");
-                        LOG.trace(bf);
+                        // Append the name and value to the URL
+                        if(LOG.isTraceEnabled())
+                        {
+                            StringBuilder bf = new StringBuilder("About to add [key]=[value] to url [" + key + "]=[" + val + "]");
+                            bf.append(" after encoding: [").append(encode(key)).append("]=[").append(encode(val)).append("]");
+                            LOG.trace(bf);
 
+                        }
+                        qryStr.append(encode(key)).append('=').append(encode(val));
                     }
-                    qryStr.append(encode(key)).append('=').append(encode(val));
                 }
             }
         }

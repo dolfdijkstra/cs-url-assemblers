@@ -148,7 +148,7 @@ public final class LangSiteHelper
     public String computeItemContext(String site_alias, long p, final String localeName)
     {
         String language_alias = localeName.substring(0, localeName.indexOf("_"));
-        return site_alias + "/" + language_alias + "/" + helper.computeItemContext(p, localeName);
+        return language_alias + "/" + site_alias +"/" + helper.computeItemContext(p, localeName);
     }
 
     public String resolveSiteForItemContext(String item_context)
