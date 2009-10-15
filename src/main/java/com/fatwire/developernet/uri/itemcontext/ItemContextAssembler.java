@@ -285,7 +285,9 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
         }
 
 
-        if(item_context == null || item_alias == null || item_type == null)
+        if(item_context == null || item_context.isEmpty()
+           || item_alias == null || item_alias.isEmpty()
+           || item_type == null || item_type.isEmpty())
         {
             if(LOG.isTraceEnabled())
             {
