@@ -461,7 +461,7 @@ public class Helper
                     throw new IllegalStateException("Found null value in ID list. List:" + list);
                 }
                 String cpath = computeAlias(id, localeName);
-                if(cpath == null)
+                if(cpath == null || cpath.length() == 0)
                 {
                     if(LOG.isTraceEnabled())
                     {
