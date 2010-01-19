@@ -11,6 +11,7 @@ package com.fatwire.developernet.uri.itemcontext.aliasing;
 import com.fatwire.assetapi.data.AssetId;
 
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Interface encapsulating the raw capability to translate an asset ID
@@ -19,7 +20,8 @@ import java.util.List;
  * Constructors must take a single argument, ICS.
  *
  * @author Tony Field
- * @since Jun 1, 2009
+ * @author Matthew Soh
+ * @since Jan 19, 2010
  */
 public interface AssetAliasingStrategy
 {
@@ -45,6 +47,12 @@ public interface AssetAliasingStrategy
      * @return list of matching asset IDs, never null.  List may return now rows.
      */
     List<CandidateInfo> findCandidatesForAlias(String type, String alias);
+    
+    
+    /**
+     * Characters that are not allowed in an alias. Aliasing strategies may ignore this if it does not apply.
+     */
+    public static final Pattern ILLEGAL_CHARACTER_PATTERN = Pattern.compile("[~!@#\\$%\\^&*\\(\\)+=\\{\\}\\|\\[\\]\\\\:\";'<>?,./ ]");
 }
 
 

@@ -8,16 +8,28 @@
  */
 package com.fatwire.developernet.uri.itemcontext;
 
-import com.fatwire.cs.core.uri.*;
-import com.fatwire.cs.core.uri.Definition.ContainerType;
-import com.fatwire.developernet.uri.lightweight.LightweightAbstractAssembler;
-import com.fatwire.developernet.uri.siteplan.Helper;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.regex.Matcher;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.*;
+import com.fatwire.cs.core.uri.Assembler;
+import com.fatwire.cs.core.uri.Definition;
+import com.fatwire.cs.core.uri.QueryAssembler;
+import com.fatwire.cs.core.uri.Simple;
+import com.fatwire.cs.core.uri.Definition.ContainerType;
+import com.fatwire.developernet.uri.itemcontext.aliasing.AssetAliasingStrategy;
+import com.fatwire.developernet.uri.lightweight.LightweightAbstractAssembler;
+import com.fatwire.developernet.uri.siteplan.Helper;
 
 /**
  * <p>Generalized URL Assembler useful for converting an item of a specific type and its context into a
@@ -30,13 +42,17 @@ import java.util.*;
  * multivariate testing, and asset type aliasing, all in addition to the specified core features.</p>
  * <p/>
  * <p>In this assembler, URLs have the following form:
- * <code>{protocol}://{domain}/{context path}/{servlet name}/{item-context}/{item-type}/{item-alias}/v{variant number}</code>.
+ * <code>{protocol}://{domain}/{context path}/{servlet name}/[{template-alias}[-{wrapper-alias}]]/{item-context}/{item-alias}/v{variant number}</code>.
+ * </p>
+ * <p>The template and wrapper alias are optional items where the latter is only applicable when the former is valid. 
+ * The template-alias supports the ability to define different layout templates. Similarly, the wrapper-alias supports the ability to define
+ * different wrapper templates. However, a wrapper alias cannot be specified without a layout alias. 
  * </p>
  * <p>Generally, this means that an individual item and its context can be represented in the URI.
  * If the item itself is not required, its type and identifier can both be suppressed from the URI.
  * In addition, a numerical variant can also be suppressed.  Thus, the assembler can be written
  * as follows:
- * <code>[{protocol}://{domain}]/{context path}/{servlet name}/{item-context}[/{item-type}/{item-alias}][/v{variant number}]</code>.
+ * <code>[{protocol}://{domain}]/{context path}/{servlet name}/[{template-alias}[-{wrapper-alias}]]/{item-context}[/{item-type}/{item-alias}][/v{variant number}]</code>.
  * where [] denote optional components.</p>
  * <p>It is also possible that {context path} and {servlet name} can be compressed out of existence, but this is a
  * server configuration matter and is not addressed in this document.</p>
@@ -51,7 +67,7 @@ import java.util.*;
  * <li>http://localhost/cs/Satellite/home</li>
  * <li>http://localhost/Satellite/company/contact-info (in this example, {context path} is null, that is, the servlet
  * context root is blank.)</li>
- * <li>http://localhost/cm/company/news/press-releases/2009/08/03/civic-holiday.html (In this example, {context path
+ * <li>http://localhost/cm/company/news/press-releases/2009/08/03/civic-holiday (In this example, {context path
  * is null, and the Satellite servlet is referenced using a url-pattern of "cm". This is configured in web.xml).</li>
  * <li>http://localhost/cm/company/media/press-kit/policies/logo-full (In this example, the path to the asset
  * in the site plan tree is <code>company/media/press-kit</code>, and thus that denotes the {item-context} for the URL.
@@ -94,8 +110,8 @@ import java.util.*;
  * <li>item-alias must be set</li>
  * <li>SatelliteContext must be set to Satellite Server</li>
  * <li>AppType must be set to Content Server</li>
- * <li>pagename must be set to the value corresponding to the {@link #PROP_GLOBAL_WRAPPER_PAGENAME} property</li>
- * <li>childpagename must be set to the value corresponding to the {@link #PROP_GLOBAL_TEMPLATE_PAGENAME} property</li>
+ * <li>pagename must be set to the value corresponding to the {@link #PROP_GLOBAL_WRAPPER_PAGENAME} property, or one that is registered by {@link #PROP_WRAPPER_PAGENAME_PREFIX}</li>
+ * <li>childpagename must be set to the value corresponding to the {@link #PROP_GLOBAL_TEMPLATE_PAGENAME} property, or one that is registered by {@link #PROP_TEMPLATE_PAGENAME_PREFIX}</li>
  * <li>Spaces are not present in any of item-context, item-type, or item-alias</li>
  * </ul>
  * <p>As indicated above, if item-type is not specified, it is possible to use the variable <code>c</code> instead.
@@ -116,18 +132,25 @@ import java.util.*;
  * <p><strong>Configuration</strong></p>
  * <p>This assembler depends on some main configuration properties.  Content Server version 7 requires these properties
  * to be set in the ServletRequest.properties file.</p>
- * <p>The item type aliasing needs to be  defined for each item type to be converted by this assembler.  See
+ * <p>The property {@link #PROP_SERVLET_CONTEXT_TOGGLE} governs whether the assembler outputs the servlet context and servlet name during assembly.
+ * </p>
+ * <p>The item type aliasing needs to be defined for each item type to be converted by this assembler.  See
  * {@link #PROP_ITEM_TYPE_PARAMETER_PREFIX} and {@link #PROP_ITEM_TYPE_ALIAS_PREFIX} for details. </p>
  * <p>Item type for contexts must also be configured if the default value is not desired.
  * See {@link #PROP_ITEM_TYPE_FOR_CONTEXT} for details.</p>
  * <p>The required template name and wrapper name also need to be configured.  This assembler will only be executed if
  * these parameters are set to the configured values.  See {@link #PROP_GLOBAL_WRAPPER_PAGENAME} and
  * {@link #PROP_GLOBAL_TEMPLATE_PAGENAME} for details.</p>
+ * <p>
+ * Additional layout and wrapper templates may be configured. See {@link #PROP_TEMPLATE_PAGENAME_PREFIX} and {@link #PROP_TEMPLATE_ALIAS_PREFIX} 
+ * for layout templates, and {@link #PROP_WRAPPER_PAGENAME_PREFIX} and {@link #PROP_WRAPPER_ALIAS_PREFIX} for wrapper templates.
+ * </p>
  * <p>The list of parameters to always be unpacked from packedargs can optionally be configured.  See
  * {@link #PROP_ALWAYS_UNPACK_ARGS} for details.
  *
  * @author Tony Field
- * @since May 14, 2009
+ * @author Matthew Soh
+ * @since Jan 19, 2010
  */
 public final class ItemContextAssembler extends LightweightAbstractAssembler
 {
@@ -163,36 +186,65 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
     public static final String PROP_ITEM_TYPE_FOR_CONTEXT_DEFAULT = "Page";
 
     /**
-     * Property defining the required value of Pagename to be used if this assembler is to be used.
+     * Property defining the common recognized Pagename.
      */
     public static final String PROP_GLOBAL_WRAPPER_PAGENAME = "com.fatwire.developernet.uri.itemcontext.global-wrapper-pagename";
 
     /**
-     * Property defining the requried value of the template's pagename to be used if this assembler is to be used.
+     * Property defining the common recognized template pagename.
      */
     public static final String PROP_GLOBAL_TEMPLATE_PAGENAME = "com.fatwire.developernet.uri.itemcontext.global-template-pagename";
 
+    /**
+     * Property prefix to register an additional template pagename. The prefix is used with a 1 based index.
+     */
+    public static final String PROP_TEMPLATE_PAGENAME_PREFIX = "com.fatwire.developernet.uri.itemcontext.template-";
+    /**
+     * Property prefix to register an additional template pagename alias. The prefix is used with a 1 based index.
+     */
+    public static final String PROP_TEMPLATE_ALIAS_PREFIX 	 = "com.fatwire.developernet.uri.itemcontext.template-alias-";
+ 
+    /**
+     * Property prefix to register an additional pagename. The prefix is used with a 1 based index.
+     */
+    public static final String PROP_WRAPPER_PAGENAME_PREFIX = "com.fatwire.developernet.uri.itemcontext.wrapper-";
+    
+    /**
+     * Property prefix to register an additional wrapper pagename. The prefix is used with a 1 based index.
+     */
+    public static final String PROP_WRAPPER_ALIAS_PREFIX 	 = "com.fatwire.developernet.uri.itemcontext.wrapper-alias-";
+  
+  
     /**
      * Comma-separated list of variable names to be always removed from packedargs and displayed as query string
      * parameters.  This helps remove packedargs from the query string.  No default values are ever set.
      */
     public static final String PROP_ALWAYS_UNPACK_ARGS = "com.fatwire.developernet.uri.itemcontext.nopack-args";
-
+    
+    
+    /**
+     * Indicates whether to append the servlet context and servlet name to the URL generated.
+     */
+    public static final String PROP_SERVLET_CONTEXT_TOGGLE = "com.fatwire.developernet.uri.itemcontext.append-servlet-context";
+       
     private final Assembler theBackupAssembler = new QueryAssembler(); // todo: consider configuring this (must be backward-compatible though)
     private final Collection<String> nopack_args = new ArrayList<String>();
     private String context_type = PROP_ITEM_TYPE_FOR_CONTEXT_DEFAULT;
     private String global_wrapper_pagename;
     private String global_template_pagename;
+    private boolean append_servlet_context;
 
     public void setProperties(Properties properties)
-    {
+    {  	
         super.setProperties(properties);
         theBackupAssembler.setProperties(properties);
         nopack_args.addAll(Arrays.asList(properties.getProperty(PROP_ALWAYS_UNPACK_ARGS, "").split(",")));
         context_type = getProperty(PROP_ITEM_TYPE_FOR_CONTEXT, PROP_ITEM_TYPE_FOR_CONTEXT_DEFAULT);
         global_wrapper_pagename = getProperty(PROP_GLOBAL_WRAPPER_PAGENAME, null);
-        global_template_pagename = getProperty(PROP_GLOBAL_TEMPLATE_PAGENAME, null);
-        LOG.info("initializing com.fatwire.developernet.uri.itemcontext.ItemContextAssembler with properties");
+        global_template_pagename = getProperty(PROP_GLOBAL_TEMPLATE_PAGENAME, null);        
+        append_servlet_context = Boolean.valueOf(getProperty(PROP_SERVLET_CONTEXT_TOGGLE, "false")).booleanValue();
+        
+        LOG.info("initializing com.fatwire.developernet.uri.itemcontext.ItemContextAssembler with properties");           
     }
 
     public URI assemble(Definition definition) throws URISyntaxException
@@ -238,29 +290,6 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
             return null;
         }
 
-        String pagename = definition.getParameter("pagename");
-        String expectedWrapper = _getWrapperForAuthority(definition.getAuthority());
-        if(pagename == null || !pagename.equals(expectedWrapper))
-        {
-
-            if(LOG.isTraceEnabled())
-            {
-                LOG.trace("Pagename not set to a valid value: " + pagename + ", expecting " + expectedWrapper);
-            }
-            return null;
-        }
-
-        String childpagename = definition.getParameter("childpagename");
-        String expectedTemplate = _getTemplateForAuthority(definition.getAuthority());
-        if(childpagename == null || !childpagename.equals(expectedTemplate))
-        {
-            if(LOG.isTraceEnabled())
-            {
-                LOG.trace("Childpagename not set to a valid value: " + childpagename + ", expecting " + expectedTemplate);
-            }
-            return null;
-        }
-
         String packedargs = definition.getParameter("packedargs"); // this is so annoying...
         Map<String, String[]> packed = parseQueryString(packedargs);
         String item_context = packed.get("item-context") != null ? packed.get("item-context")[0] : null;
@@ -296,22 +325,52 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
             return null; // Can't assemble this URL. Sorry...
         }
 
-        // content server bug does not handle decoding names with spaces very well.
-        if(item_alias.indexOf(" ") >= 0 || item_context.indexOf(" ") >= 0)
-        {
-            if(LOG.isTraceEnabled())
-            {
-                LOG.trace("Could not assemble URL because item-alias and/or item-context has a space in it, and a CS bug prevents proper decoding of encoded spaces in URLs.  (" + item_type + "), (" + item_context + "), (" + item_alias + ")");
+        String pagename = definition.getParameter("pagename");
+        String wrapperAlias = _getWrapperAlias(pagename); 
+        if(pagename == null || wrapperAlias==null) {
+            if(LOG.isTraceEnabled()) {
+                LOG.trace("Wrapper is not registered with the assembler. Wrapper pagename : " + pagename);
             }
             return null;
         }
 
+        String childpagename = definition.getParameter("childpagename");
+        String templateAlias = _getTemplateAlias(childpagename);
+        if(childpagename == null || templateAlias==null) {
+            if(LOG.isTraceEnabled()) {
+                LOG.trace("Template is not registered with the assembler. Template pagename : " + childpagename);
+            }
+            return null;
+        }        
+        
+        // content server bug does not handle decoding names with spaces very well.
+        
+        Matcher m1 = AssetAliasingStrategy.ILLEGAL_CHARACTER_PATTERN.matcher(item_alias);        
+        if (m1.find()) {
+            if(LOG.isTraceEnabled()) {
+                LOG.trace("Could not assemble URL because item-alias contains illegal characters.  (" + item_type + "), (" + item_context + "), (" + item_alias + ")");
+            }
+            return null;       	
+        }        	
 
-        StringBuilder path = new StringBuilder(getProperty(PROP_URIBASE_SATELLITE_SERVER, null));
-        if(!path.toString().endsWith("/"))
-        {
+        StringBuilder path = new StringBuilder();
+        if (append_servlet_context) {
+        	path.append(getProperty(PROP_URIBASE_SATELLITE_SERVER, ""));
+        }
+        
+        if(!path.toString().endsWith("/")) {
             path.append('/');
         }
+        
+        // If templateAlias is an empty string, then it's the global layout template. We wouldn't even consider the wrapper
+        if (!templateAlias.equals("")) {
+        	path.append(templateAlias);
+        	if (!wrapperAlias.equals("")){
+        		path.append("-" + wrapperAlias);
+        	}
+        	path.append("/");
+        }
+        
         path.append(item_context);
         if(!context_type.equals(item_type) && !item_context.endsWith(item_alias))
         {
@@ -323,14 +382,16 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
         {
             path.append("/v").append(variant);
         }
-        return path.toString();
+        
+        return path.toString().toLowerCase();
     }
 
     /**
      * List of parameters that are effectively embedded in the pathinfo for this URL.
      * item-type is embedded as itself, p is embedded as item-context, cid is embedded as item-alias.
+     * locale is implied in the domain name.
      */
-    private static List<String> EMBEDDED_PARAMS = Arrays.asList("pagename", "childpagename", "item-context", "item-alias", "variant", "item-type", "c", "cid", "p");
+    private static List<String> EMBEDDED_PARAMS = Arrays.asList("pagename", "childpagename", "item-context", "item-alias", "variant", "item-type", "c", "cid", "p", "locale");
 
     private String _getQuotedQueryString(Definition definition)
     {
@@ -389,7 +450,7 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
         Simple result;
         try
         {
-            final Map qryParams = getQueryParams(uri); // this is the main workhorse function.
+            final Map<String, String[]> qryParams = getQueryParams(uri); // this is the main workhorse function.
             if(qryParams == null)
             {
                 if(LOG.isTraceEnabled())
@@ -435,7 +496,7 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
             }
             return null;
         }
-
+              
         // path is of the form /<base>/<item-context>/<item-type>/<item-alias>/v<variant>
         // or
         // path is of the form /<base>/<item-context>/<item-type>/<item-alias>
@@ -454,8 +515,15 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
             }
             return null;
         }
-
-        String uripathNoBase = uripath.substring(pathPrefix.length());
+        
+        if (uripath.equals(pathPrefix)) {
+        	if (LOG.isTraceEnabled()) {
+        		LOG.trace("This looks like a regular QueryString assembler request. Not processing further.");
+        	}
+        	return null;
+        }
+        
+        String uripathNoBase = uripath.substring(pathPrefix.length() + 1);  // +1 for the leading slash             
         String[] pathElements = uripathNoBase.split("/");
         if(pathElements.length < 1)
         {
@@ -475,7 +543,6 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
             }
         }
 
-
         // parse params
         List<String> path = new ArrayList<String>(Arrays.asList(pathElements));
 
@@ -487,6 +554,44 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
             params.put("variant", s);
         }
 
+        // Testing to see if the first part of the path string specifies the template/wrapper
+        String temp = path.get(0);
+        String[] dash = temp.split("-");        
+        
+        String template = global_template_pagename;
+        String wrapper = global_wrapper_pagename;
+        // Greater than 2 dashes, cannot be a template/wrapper pair
+        if (dash.length<=2) {
+        	if (LOG.isTraceEnabled()) {
+        		LOG.trace("Checking the first element in the path to see if it is a template/wrapper pair. String is " + temp);
+        	}
+    		temp = _getTemplate(dash[0]);
+        	if (LOG.isTraceEnabled()) {
+        		LOG.trace("Resolving template with '" + dash[0] + "' and got " + temp);
+        	}    	
+    		if (temp!=null) {    			
+    			template = temp;
+    			if (dash.length==2) {
+	        		temp = _getWrapper(dash[1]);
+	            	if (LOG.isTraceEnabled()) {
+	            		LOG.trace("Resolving wrapper with '" + dash[1] + "' and got " + temp);
+	            	} 	        		
+	        		if (temp!=null) {
+	        			wrapper = temp;
+	        		}
+	        	}
+    			path.remove(0);		// We know that the first element in the path is the template/wrapper pair and have already used the information
+    								// So let's remove it.
+    		}
+        }
+    	params.put("childpagename", new String[] {template});
+    	params.put("pagename", 		new String[] {wrapper} );
+        
+        if(LOG.isTraceEnabled()) {
+            LOG.trace("pagename decoded to " + wrapper);
+        	LOG.trace("childpagename decoded to " + template);            
+        }
+
         String[] cAndCpath = _getCandCpath(path);
         if(cAndCpath != null)
         {
@@ -496,16 +601,9 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
             params.put("c", item_type); // for simplicity
             params.put("item-alias", item_alias);
             LOG.trace("item-type decoded to:" + item_type[0]);
-            LOG.trace("item-alias decoded to:" + item_alias[0]);
-        }
-
-        String item_context = _getCpath(path);
-        String[] saPpath = {item_context};
-        params.put("item-context", saPpath);
-        LOG.trace("item-context decoded to:" + item_context);
-
-        if(cAndCpath == null)
-        {
+            LOG.trace("item-alias decoded to:" + item_alias[0]);            
+        } else {
+        	// Only the Page asset, no path + asset.        	
             String[] item_type = {context_type};
             String[] item_alias = {path.get(path.size() - 1)}; // path has been trimmed by now
             params.put("item-type", item_type);
@@ -513,24 +611,13 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
             params.put("item-alias", item_alias);
             LOG.trace("item-type decoded to:" + item_type[0]);
             LOG.trace("item-alias decoded to:" + item_alias[0]);
+                 	
         }
 
-
-        // less interesting params now
-
-        String[] layoutTemplate = {_getTemplateForAuthority(uri.getAuthority())};
-        params.put("childpagename", layoutTemplate);
-        if(LOG.isTraceEnabled())
-        {
-            LOG.trace("childpagename decoded to " + layoutTemplate[0]);
-        }
-
-        String[] wrapper = {_getWrapperForAuthority(uri.getAuthority())};
-        params.put("pagename", wrapper);
-        if(LOG.isTraceEnabled())
-        {
-            LOG.trace("pagename decoded to " + wrapper[0]);
-        }
+        String item_context = _getCpath(path); 
+        String[] saPpath = {item_context};
+        params.put("item-context", saPpath);
+        LOG.trace("item-context decoded to:" + item_context);
 
         return params;
     }
@@ -618,24 +705,83 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
         return getProperty(PROP_ITEM_TYPE_PARAMETER_PREFIX + atName, null);
     }
 
-    private final String _getWrapperForAuthority(String authority)
-    {
-        // TODO: figure out how to let this be more configuratble.
-        // Using the authority from the URL did not quite work because
-        // for some links, the authority comes back blank, which would
-        // be ambiguous in a multi-site environment.  For now, don't
-        // expose this feature until it can be much more robust
-        return global_wrapper_pagename;
+    /**
+     * Given a wrapper alias, find the wrapper pagename.
+     * @param alias wrapper alias
+     * @return the wrapper pagename or null if the alias is not registered.
+     */
+    private final String _getWrapper(String alias) {
+    	for (int i=1;;i++) {
+    		String temp = getProperty(PROP_WRAPPER_ALIAS_PREFIX + i, null); 
+    		if (temp==null) {
+    			break;
+    		}
+    		if (temp.equals(alias)) {
+    			return getProperty(PROP_WRAPPER_PAGENAME_PREFIX + i, null); 
+    		}
+    	}
+    	return null;   	
     }
-
-    private final String _getTemplateForAuthority(String authority)
-    {
-        // TODO: figure out how to let this be more configuratble.
-        // Using the authority from the URL did not quite work because
-        // for some links, the authority comes back blank, which would
-        // be ambiguous in a multi-site environment.  For now, don't
-        // expose this feature until it can be much more robust
-        return global_template_pagename;
+ 
+    /**
+     * Given a template alias, find the template pagename.
+     * @param alias template alias
+     * @return the template pagename or null if the alias is not registered.
+     */    
+    private final String _getTemplate(String alias) {
+    	for (int i=1;;i++) {
+    		String temp = getProperty(PROP_TEMPLATE_ALIAS_PREFIX + i, null); 
+    		if (temp==null) {
+    			break;
+    		}
+    		if (temp.equals(alias)) {
+    			return getProperty(PROP_TEMPLATE_PAGENAME_PREFIX + i, null); 
+    		}
+    	}
+    	return null;   	
+    }    
+    
+    /**
+     * Given a wrapper pagename, find the wrapper alias.
+     * @param wrapper the wrapper pagename
+     * @return the wrapper alias. Empty string is returned if the wrapper is the common wrapper. 
+     * 		   Null is returned if the alias is not registered. 
+     */
+    private final String _getWrapperAlias(String wrapper) {
+    	if (wrapper.equals(global_wrapper_pagename)) {
+    		return "";
+    	}
+    	for (int i=1;;i++) {
+    		String temp = getProperty(PROP_WRAPPER_PAGENAME_PREFIX + i, null); 
+    		if (temp==null) {
+    			break;
+    		}
+    		if (temp.equals(wrapper)) {
+    			return getProperty(PROP_WRAPPER_ALIAS_PREFIX + i, null); 
+    		}
+    	}
+    	return null;
     }
-
+    
+    /**
+     * Given a template pagename, find the template alias.
+     * @param wrapper the template pagename
+     * @return the template alias. Empty string is returned if the template is the common template. 
+     * 		   Null is returned if the alias is not registered. 
+     */    
+    private final String _getTemplateAlias(String template) {
+    	if (template.equals(global_template_pagename)) {
+    		return "";
+    	}
+    	for (int i=1;;i++) {
+    		String temp = getProperty(PROP_TEMPLATE_PAGENAME_PREFIX + i, null); 
+    		if (temp==null) {
+    			break;
+    		}
+    		if (temp.equals(template)) {
+    			return getProperty(PROP_TEMPLATE_ALIAS_PREFIX + i, null); 
+    		}
+    	}
+    	return null;
+    }  
 }
