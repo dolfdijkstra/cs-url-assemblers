@@ -242,7 +242,7 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
         context_type = getProperty(PROP_ITEM_TYPE_FOR_CONTEXT, PROP_ITEM_TYPE_FOR_CONTEXT_DEFAULT);
         global_wrapper_pagename = getProperty(PROP_GLOBAL_WRAPPER_PAGENAME, null);
         global_template_pagename = getProperty(PROP_GLOBAL_TEMPLATE_PAGENAME, null);        
-        append_servlet_context = Boolean.valueOf(getProperty(PROP_SERVLET_CONTEXT_TOGGLE, "false")).booleanValue();
+        append_servlet_context = Boolean.valueOf(getProperty(PROP_SERVLET_CONTEXT_TOGGLE, "true")).booleanValue();
         
         LOG.info("initializing com.fatwire.developernet.uri.itemcontext.ItemContextAssembler with properties");           
     }
@@ -561,6 +561,9 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
         String template = global_template_pagename;
         String wrapper = global_wrapper_pagename;
         // Greater than 2 dashes, cannot be a template/wrapper pair
+        
+        /* Matt: Not doing this for now after advise from Tony. 
+         	     Will not more into this later.
         if (dash.length<=2) {
         	if (LOG.isTraceEnabled()) {
         		LOG.trace("Checking the first element in the path to see if it is a template/wrapper pair. String is " + temp);
@@ -584,6 +587,7 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
     								// So let's remove it.
     		}
         }
+        */
     	params.put("childpagename", new String[] {template});
     	params.put("pagename", 		new String[] {wrapper} );
         
@@ -747,7 +751,13 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
      * @return the wrapper alias. Empty string is returned if the wrapper is the common wrapper. 
      * 		   Null is returned if the alias is not registered. 
      */
-    private final String _getWrapperAlias(String wrapper) {
+    private final String _getWrapperAlias(String wrapper) {    	    	    	
+    	if (wrapper.equals(global_wrapper_pagename)) {
+    		return "";
+    	} else {
+    		return null;
+    	}
+    	/*
     	if (wrapper.equals(global_wrapper_pagename)) {
     		return "";
     	}
@@ -761,6 +771,7 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
     		}
     	}
     	return null;
+    	*/
     }
     
     /**
@@ -770,6 +781,12 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
      * 		   Null is returned if the alias is not registered. 
      */    
     private final String _getTemplateAlias(String template) {
+    	if (template.equals(global_template_pagename)) {
+    		return "";
+    	} else {
+    		return null;
+    	}
+    	/*
     	if (template.equals(global_template_pagename)) {
     		return "";
     	}
@@ -782,6 +799,6 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
     			return getProperty(PROP_TEMPLATE_ALIAS_PREFIX + i, null); 
     		}
     	}
-    	return null;
+    	return null;*/
     }  
 }
