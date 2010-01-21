@@ -8,33 +8,22 @@
  */
 package com.fatwire.developernet.uri.itemcontext.aliasing;
 
-import static com.fatwire.developernet.IListUtils.getLongValue;
-import static com.fatwire.developernet.facade.mda.DimensionUtils.getLocaleAsDimension;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-
-import COM.FutureTense.Interfaces.ICS;
-import COM.FutureTense.Interfaces.IList;
-import COM.FutureTense.Interfaces.Utilities;
+import COM.FutureTense.Interfaces.*;
 import COM.FutureTense.Util.IterableIListWrapper;
 import COM.FutureTense.Util.ftErrors;
-
 import com.fatwire.assetapi.common.AssetAccessException;
-import com.fatwire.assetapi.data.AssetData;
-import com.fatwire.assetapi.data.AssetDataManager;
-import com.fatwire.assetapi.data.AssetId;
-import com.fatwire.assetapi.data.AttributeData;
-import com.fatwire.cs.core.db.PreparedStmt;
-import com.fatwire.cs.core.db.StatementParam;
+import com.fatwire.assetapi.data.*;
 import com.fatwire.developernet.CSRuntimeException;
+import static com.fatwire.developernet.IListUtils.getLongValue;
+import static com.fatwire.developernet.facade.mda.DimensionUtils.getLocaleAsDimension;
+import com.fatwire.developernet.facade.runtag.example.asset.AssetList;
 import com.fatwire.mda.Dimension;
 import com.fatwire.system.SessionFactory;
 import com.openmarket.xcelerate.asset.AssetIdImpl;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import java.util.*;
 
 /**
  * This translator simply uses the <code>name</code> attribute of the
@@ -45,8 +34,7 @@ import com.openmarket.xcelerate.asset.AssetIdImpl;
  * configuration
  *
  * @author Tony Field
- * @author Matthew Soh
- * @since Jan 19, 2010
+ * @since Jun 1, 2009
  */
 public class NameAliasingStrategy implements AssetAliasingStrategy
 {
@@ -69,7 +57,7 @@ public class NameAliasingStrategy implements AssetAliasingStrategy
         }
         catch(AssetAccessException e)
         {
-            throw new RuntimeException("could not read name attribute", e);
+            throw new RuntimeException("could not read path attribute", e);
         }
         AttributeData name = asset.getAttributeData("name");
         String result = name == null ? null : (String)name.getData();
@@ -93,7 +81,6 @@ public class NameAliasingStrategy implements AssetAliasingStrategy
             throw new CSRuntimeException("Invalid cpath specified in findCandidatesForAlias", ftErrors.badparams);
         }
 
-        /*
         // start with the last element in ppath.
         AssetList assetList = new AssetList();
         assetList.setType(c);
@@ -101,25 +88,16 @@ public class NameAliasingStrategy implements AssetAliasingStrategy
         assetList.setExcludeVoided(true);
         assetList.setField("name", cpath);
         assetList.execute(ics);
-		*/
-        
-        ArrayList<String> tables = new ArrayList<String>(1);
-        tables.add(c);
-        PreparedStmt ps = new PreparedStmt( "select id from " + c + "  where lower(name) = ? and status != 'VO'", tables);
-        ps.setElement(0, c, "name");
-        
-        StatementParam sp = ps.newParam();
-        sp.setString(0, cpath);
-        
-        IList lstResult =  ics.SQL(ps, sp, true); 
-        		
+
         if(ics.GetErrno() < 0 && ics.GetErrno() != ftErrors.norows)
         {
             throw new CSRuntimeException("Error looking up assets of type: " + c + " by cpath: " + cpath, ics.GetErrno());
         }
 
         ArrayList<CandidateInfo> result = new ArrayList<CandidateInfo>();
-        if(lstResult == null || !lstResult.hasData() || lstResult.numRows() == 0)
+        IList pages = ics.GetList("__out");
+        ics.RegisterList("__out", null);
+        if(pages == null || !pages.hasData() || pages.numRows() == 0)
         {
             if(LOG.isTraceEnabled())
             {
@@ -128,7 +106,8 @@ public class NameAliasingStrategy implements AssetAliasingStrategy
         }
         else
         {
-            for(IList row : new IterableIListWrapper(lstResult))
+
+            for(IList row : new IterableIListWrapper(pages))
             {
                 AssetId id = new AssetIdImpl(c, getLongValue(row, "id"));
                 Dimension dim = getLocaleAsDimension(ics, id);
