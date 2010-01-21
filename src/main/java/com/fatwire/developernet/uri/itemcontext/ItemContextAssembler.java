@@ -196,23 +196,18 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
     public static final String PROP_GLOBAL_TEMPLATE_PAGENAME = "com.fatwire.developernet.uri.itemcontext.global-template-pagename";
 
     /**
-     * Property prefix to register an additional template pagename. The prefix is used with a 1 based index.
+     * Property prefix to register an additional template pagename per asset type. 
+     * The prefix is appended to the name of the asset type before the look up.
+     * e.g. com.fatwire.developernet.uri.itemcontext.template.Page = FW/Layout
      */
-    public static final String PROP_TEMPLATE_PAGENAME_PREFIX = "com.fatwire.developernet.uri.itemcontext.template-";
-    /**
-     * Property prefix to register an additional template pagename alias. The prefix is used with a 1 based index.
-     */
-    public static final String PROP_TEMPLATE_ALIAS_PREFIX 	 = "com.fatwire.developernet.uri.itemcontext.template-alias-";
+    public static final String PROP_TEMPLATE_PAGENAME_PREFIX = "com.fatwire.developernet.uri.itemcontext.template.";
  
     /**
-     * Property prefix to register an additional pagename. The prefix is used with a 1 based index.
+     * Property prefix to register an additional pagename. 
+     * The prefix is appended to the name of the asset type before the look up.
+     * e.g. com.fatwire.developernet.uri.itemcontext.wrapper.Page = FW/Wrapper
      */
-    public static final String PROP_WRAPPER_PAGENAME_PREFIX = "com.fatwire.developernet.uri.itemcontext.wrapper-";
-    
-    /**
-     * Property prefix to register an additional wrapper pagename. The prefix is used with a 1 based index.
-     */
-    public static final String PROP_WRAPPER_ALIAS_PREFIX 	 = "com.fatwire.developernet.uri.itemcontext.wrapper-alias-";
+    public static final String PROP_WRAPPER_PAGENAME_PREFIX = "com.fatwire.developernet.uri.itemcontext.wrapper.";
   
   
     /**
@@ -326,19 +321,19 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
         }
 
         String pagename = definition.getParameter("pagename");
-        String wrapperAlias = _getWrapperAlias(pagename); 
+        String wrapperAlias = _getWrapperAlias(pagename, item_type); 
         if(pagename == null || wrapperAlias==null) {
             if(LOG.isTraceEnabled()) {
-                LOG.trace("Wrapper is not registered with the assembler. Wrapper pagename : " + pagename);
+                LOG.trace("Wrapper is not compatible with the assembler. Wrapper pagename : " + pagename);
             }
             return null;
         }
 
         String childpagename = definition.getParameter("childpagename");
-        String templateAlias = _getTemplateAlias(childpagename);
+        String templateAlias = _getTemplateAlias(childpagename, item_type); 
         if(childpagename == null || templateAlias==null) {
             if(LOG.isTraceEnabled()) {
-                LOG.trace("Template is not registered with the assembler. Template pagename : " + childpagename);
+                LOG.trace("Template is not compatible with the assembler. Template pagename : " + childpagename);
             }
             return null;
         }        
@@ -363,6 +358,7 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
         }
         
         // If templateAlias is an empty string, then it's the global layout template. We wouldn't even consider the wrapper
+        // NOT POSSIBLE YET. Currently does not yet support non empty template or wrapper aliases.        
         if (!templateAlias.equals("")) {
         	path.append(templateAlias);
         	if (!wrapperAlias.equals("")){
@@ -558,8 +554,30 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
         String temp = path.get(0);
         String[] dash = temp.split("-");        
         
-        String template = global_template_pagename;
-        String wrapper = global_wrapper_pagename;
+        String[] cAndCpath = _getCandCpath(path);
+        if(cAndCpath != null)
+        {
+            String[] item_type = {cAndCpath[0]};
+            String[] item_alias = {cAndCpath[1]};
+            params.put("item-type", item_type);
+            params.put("c", item_type); // for simplicity
+            params.put("item-alias", item_alias);
+            LOG.trace("item-type decoded to:" + item_type[0]);
+            LOG.trace("item-alias decoded to:" + item_alias[0]);            
+        } else {
+        	// Only the Page asset, no path + asset.        	
+            String[] item_type = {context_type};
+            String[] item_alias = {path.get(path.size() - 1)}; // path has been trimmed by now
+            params.put("item-type", item_type);
+            params.put("c", item_type); // for simplicity
+            params.put("item-alias", item_alias);
+            LOG.trace("item-type decoded to:" + item_type[0]);
+            LOG.trace("item-alias decoded to:" + item_alias[0]);
+                 	
+        }
+
+        String template = _getTemplate(params.get("item-type")[0]);
+        String wrapper = _getWrapper(params.get("item-type")[0]);
         // Greater than 2 dashes, cannot be a template/wrapper pair
         
         /* Matt: Not doing this for now after advise from Tony. 
@@ -595,29 +613,7 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
             LOG.trace("pagename decoded to " + wrapper);
         	LOG.trace("childpagename decoded to " + template);            
         }
-
-        String[] cAndCpath = _getCandCpath(path);
-        if(cAndCpath != null)
-        {
-            String[] item_type = {cAndCpath[0]};
-            String[] item_alias = {cAndCpath[1]};
-            params.put("item-type", item_type);
-            params.put("c", item_type); // for simplicity
-            params.put("item-alias", item_alias);
-            LOG.trace("item-type decoded to:" + item_type[0]);
-            LOG.trace("item-alias decoded to:" + item_alias[0]);            
-        } else {
-        	// Only the Page asset, no path + asset.        	
-            String[] item_type = {context_type};
-            String[] item_alias = {path.get(path.size() - 1)}; // path has been trimmed by now
-            params.put("item-type", item_type);
-            params.put("c", item_type); // for simplicity
-            params.put("item-alias", item_alias);
-            LOG.trace("item-type decoded to:" + item_type[0]);
-            LOG.trace("item-alias decoded to:" + item_alias[0]);
-                 	
-        }
-
+        
         String item_context = _getCpath(path); 
         String[] saPpath = {item_context};
         params.put("item-context", saPpath);
@@ -711,52 +707,59 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
 
     /**
      * Given a wrapper alias, find the wrapper pagename.
-     * @param alias wrapper alias
+     * @param c the asset type
      * @return the wrapper pagename or null if the alias is not registered.
      */
-    private final String _getWrapper(String alias) {
-    	for (int i=1;;i++) {
-    		String temp = getProperty(PROP_WRAPPER_ALIAS_PREFIX + i, null); 
-    		if (temp==null) {
-    			break;
-    		}
-    		if (temp.equals(alias)) {
-    			return getProperty(PROP_WRAPPER_PAGENAME_PREFIX + i, null); 
-    		}
-    	}
-    	return null;   	
+    private final String _getWrapper(String c) {
+    	// TODO: Add a version to look up aliases
+    	return getProperty(PROP_WRAPPER_PAGENAME_PREFIX + c, global_wrapper_pagename); 	
     }
  
     /**
      * Given a template alias, find the template pagename.
-     * @param alias template alias
+     * @param c the asset type
      * @return the template pagename or null if the alias is not registered.
      */    
-    private final String _getTemplate(String alias) {
-    	for (int i=1;;i++) {
-    		String temp = getProperty(PROP_TEMPLATE_ALIAS_PREFIX + i, null); 
-    		if (temp==null) {
-    			break;
-    		}
-    		if (temp.equals(alias)) {
-    			return getProperty(PROP_TEMPLATE_PAGENAME_PREFIX + i, null); 
-    		}
-    	}
-    	return null;   	
+    private final String _getTemplate(String c) {
+    	// TODO: Add a version to look up aliases
+    	return getProperty(PROP_TEMPLATE_PAGENAME_PREFIX + c, global_template_pagename); 
     }    
     
     /**
      * Given a wrapper pagename, find the wrapper alias.
      * @param wrapper the wrapper pagename
-     * @return the wrapper alias. Empty string is returned if the wrapper is the common wrapper. 
+     * @param c the asset type
+     * @return the wrapper alias. Empty string is returned if the wrapper is the common wrapper or a registered wrapper.
      * 		   Null is returned if the alias is not registered. 
      */
-    private final String _getWrapperAlias(String wrapper) {    	    	    	
-    	if (wrapper.equals(global_wrapper_pagename)) {
-    		return "";
-    	} else {
-    		return null;
+    private final String _getWrapperAlias(String wrapper, String c) {    	
+    	if (LOG.isTraceEnabled()) {
+    		LOG.trace("_getWrapperAlias looking for wrapper alias given wrapper '" + wrapper + "' and asset type " + c );
+    	}   
+    	String alias = null;
+    	String resolvedWrapper = getProperty(PROP_WRAPPER_PAGENAME_PREFIX + c, null);
+    	if (resolvedWrapper==null) {
+    		LOG.trace("_getWrapperAlias wrapper not registered for asset type. Checking global wrapper." );
+    		// If the property is not defined, then check if the template is equal to the global template.
+    		if (wrapper.equals(global_wrapper_pagename)) {
+    			alias = "";
+    		}
+    	} else {     	
+        	if (LOG.isTraceEnabled()) {
+        		LOG.trace("_getWrapperAlias found wrapper '" + resolvedWrapper + "' registered for asset type " + c );
+        	}    		
+	    	if (wrapper.equals(resolvedWrapper)) {
+	    		alias = "";
+	    	} else {
+	        	// TODO: If the wrapper supplied is not a registered one, we need a solution for this
+	    		LOG.trace("_getWrapperAlias a wrapper is registered but requested wrapper does not match. No solution for this yet." );
+	    	}
     	}
+    	
+    	if (LOG.isDebugEnabled()) {
+    		LOG.debug("_getWrapperAlias returning '" + alias + "' for wrapper '" + wrapper + "' and asset type " + c );
+    	}
+    	return alias;
     	/*
     	if (wrapper.equals(global_wrapper_pagename)) {
     		return "";
@@ -777,15 +780,38 @@ public final class ItemContextAssembler extends LightweightAbstractAssembler
     /**
      * Given a template pagename, find the template alias.
      * @param wrapper the template pagename
+     * @param c the asset type
      * @return the template alias. Empty string is returned if the template is the common template. 
      * 		   Null is returned if the alias is not registered. 
      */    
-    private final String _getTemplateAlias(String template) {
-    	if (template.equals(global_template_pagename)) {
-    		return "";
-    	} else {
-    		return null;
+    private final String _getTemplateAlias(String template, String c) {
+    	if (LOG.isTraceEnabled()) {
+    		LOG.trace("_getTemplateAlias looking for template alias given template '" + template + "' and asset type " + c );
+    	}       	
+    	String alias = null;
+    	String resolvedTemplate = getProperty(PROP_TEMPLATE_PAGENAME_PREFIX + c, null);
+    	if (resolvedTemplate==null) {
+    		LOG.trace("_getTemplateAlias template not registered for asset type. Checking global template." );
+    		// If the property is not defined, then check if the template is equal to the global template.
+    		if (template.equals(global_template_pagename)) {
+    			alias = "";
+    		}
+    	} else {     	
+        	if (LOG.isTraceEnabled()) {
+        		LOG.trace("_getTemplateAlias found template '" + resolvedTemplate + "' registered for asset type " + c );
+        	}        		
+	    	if (template.equals(resolvedTemplate)) {
+	    		alias = "";
+	    	} else {
+	        	// TODO: If the template supplied is not a registered one, we need a solution for this
+	    		LOG.trace("_getTemplateAlias a template is registered but requested template does not match. No solution for this yet." );
+	    	}
     	}
+    	
+    	if (LOG.isDebugEnabled()) {
+    		LOG.debug("_getTemplateAlias returning '" + alias + "' for template '" + template + "' and asset type " + c );
+    	}
+    	return alias;
     	/*
     	if (template.equals(global_template_pagename)) {
     		return "";
