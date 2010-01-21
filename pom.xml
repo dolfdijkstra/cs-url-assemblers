@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.fatwire.developernet</groupId>
     <artifactId>cs-url-assemblers</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0</version>
     <packaging>jar</packaging>
     <name>ContentServer URL Assemblers</name>
     <build>
