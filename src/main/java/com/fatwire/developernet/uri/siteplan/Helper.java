@@ -8,38 +8,26 @@
  */
 package com.fatwire.developernet.uri.siteplan;
 
-import static com.fatwire.developernet.IListUtils.getLongValue;
-import static com.fatwire.developernet.IListUtils.getStringValue;
-
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.regex.Matcher;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-
-import COM.FutureTense.Interfaces.ICS;
-import COM.FutureTense.Interfaces.IList;
-import COM.FutureTense.Interfaces.Utilities;
+import COM.FutureTense.Interfaces.*;
 import COM.FutureTense.Util.IterableIListWrapper;
 import COM.FutureTense.Util.ftErrors;
-
 import com.fatwire.assetapi.data.AssetId;
 import com.fatwire.developernet.CSRuntimeException;
 import com.fatwire.developernet.facade.runtag.example.asset.Children;
 import com.fatwire.developernet.facade.runtag.example.siteplan.NodePath;
-import com.fatwire.developernet.uri.itemcontext.aliasing.AssetAliasingStrategy;
-import com.fatwire.developernet.uri.itemcontext.aliasing.CandidateInfo;
-import com.fatwire.developernet.uri.itemcontext.aliasing.IdAliasingStrategy;
-import com.fatwire.developernet.uri.itemcontext.aliasing.MultilingualPageMetadataArticleAliasingStrategy;
-import com.fatwire.developernet.uri.itemcontext.aliasing.NameAliasingStrategy;
-import com.fatwire.developernet.uri.itemcontext.aliasing.PageMetadataArticleAliasingStrategy;
-import com.fatwire.developernet.uri.itemcontext.aliasing.PathAliasingStrategy;
+import com.fatwire.developernet.uri.itemcontext.aliasing.*;
 import com.fatwire.mda.Dimension;
 import com.openmarket.xcelerate.asset.AssetIdImpl;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.util.*;
+import java.util.regex.Matcher;
+
+import static com.fatwire.developernet.IListUtils.getLongValue;
+import static com.fatwire.developernet.IListUtils.getStringValue;
 
 /**
  * <p>Helper class for dealing with the ItemContext assembler that is based on the Site Plan Tree.  Specifically,
@@ -142,7 +130,7 @@ import com.openmarket.xcelerate.asset.AssetIdImpl;
  *
  * @author Tony Field
  * @author Matthew Soh
- * @since Jan 19, 2010
+ * @since Jun 1, 2009
  */
 public class Helper
 {
@@ -184,7 +172,7 @@ public class Helper
     /**
      * Default value for the {@link #PROPERTY_ALIASING_STRATEGY} property.
      */
-    public static final String PROPERTY_ALIASING_STRATEGY_DEFAULT = NameAliasingStrategy.class.getName();
+    public static final String PROPERTY_ALIASING_STRATEGY_DEFAULT = IdAliasingStrategy.class.getName();
 
     private final int lowestLevelToInclude;
     private final ICS ics;
@@ -357,40 +345,45 @@ public class Helper
 
     /**
      * Convenience version where cid is expressed in a String.
+     *
      * @param c asset type
      * @param cid asset id
      * @param localeName name of the locale for which the alias should be computed
      * @return alias for the asset, or else null
      */
-    public String computeAlias(String c, String cid, String localeName) {
-    	long assetid = -1L;
-    	try {
-    		assetid = Long.valueOf(cid).longValue();
-    	} catch (NumberFormatException ne) {
-    		return null;
-    	}
-        return computeAlias(new AssetIdImpl(c, assetid), localeName);
+    public String computeAlias(String c, String cid, String localeName)
+    {
+        try
+        {
+            return computeAlias(new AssetIdImpl(c, Long.valueOf(cid)), localeName);
+        }
+        catch(NumberFormatException ne)
+        {
+            throw new IllegalArgumentException("Value for cid is not a valid long: " + cid, ne);
+        }
     }
-    
+
     public String computeAlias(AssetId id, final String localeName)
     {
         if(LOG.isDebugEnabled())
         {
-            LOG.debug("computeAlias: Computing cpath for asset-locale:" + id + "-" + localeName);
+            LOG.debug("computeAlias: Computing alias for asset-locale:" + id + "-" + localeName);
         }
         String result = translator.computeAlias(id, localeName);
-        
+
         Matcher m = AssetAliasingStrategy.ILLEGAL_CHARACTER_PATTERN.matcher(result);
-       
-        if (m.find()) {
-        	if (LOG.isTraceEnabled()) {
-        		LOG.debug("computeAlias: Illegal characters found in cpath " + result );
-        		return null;
-        	}
+
+        if(m.find())
+        {
+            if(LOG.isDebugEnabled())
+            {
+                LOG.debug("Computed alias from " + id + ":" + localeName + " but found illegal characters in it and therefore cannot use it: " + result);
+            }
+            result = null;
         }
         if(LOG.isDebugEnabled())
         {
-            LOG.debug("computeAlias: Computed cpath for asset-locale:" + id + "-" + localeName + " and got: " + result);
+            LOG.debug("computeAlias: Computed alias for asset-locale:" + id + "-" + localeName + " and got: " + result);
         }
         return result;
     }
@@ -431,20 +424,23 @@ public class Helper
 
     /**
      * Convenience version to automatically convert p expressed in a String.
+     *
      * @param p page id
      * @param localeName name of locale (like en_US)
      * @return context or null
      */
-    public String computeItemContext(String p, final String localeName) {
-    	long pid = -1L;
-    	try {
-    		pid = Long.valueOf(p).longValue();
-    	} catch (NumberFormatException ne) {
-    		return null;
-    	}
-    	return computeItemContext(pid, localeName);
+    public String computeItemContext(String p, final String localeName)
+    {
+        try
+        {
+            return computeItemContext(Long.valueOf(p), localeName);
+        }
+        catch(NumberFormatException ne)
+        {
+            throw new IllegalArgumentException("Value for p is not a valid long:" + p, ne);
+        }
     }
-    
+
     private List<AssetId> _pruneNodePathAndReverse(IList nodepath)
     {
         List<AssetId> list = new ArrayList<AssetId>();
@@ -604,7 +600,7 @@ public class Helper
         // if we don't get a unique value, load p, and try to see if p is associated
         // with one of the cpath candidates.
         final long result;
-        List<CandidateInfo> candidates = translator.findCandidatesForAlias(c, alias); 
+        List<CandidateInfo> candidates = translator.findCandidatesForAlias(c, alias);
         switch(candidates.size())
         {
             case 0:
@@ -663,12 +659,11 @@ public class Helper
 
         String[] breadcrumb = item_context.split("/");
 
-        List<CandidateInfo> rightmostCandidates = translator.findCandidatesForAlias("Page", breadcrumb[breadcrumb.length - 1]);      
+        List<CandidateInfo> rightmostCandidates = translator.findCandidatesForAlias("Page", breadcrumb[breadcrumb.length - 1]);
         for(CandidateInfo rightmostCandidate : rightmostCandidates)
         {
             String candidatePpath = computeItemContext(rightmostCandidate.getId().getId(), rightmostCandidate.getDim() == null ? null : rightmostCandidate.getDim().getName());
-                       
-            if(item_context.equalsIgnoreCase((candidatePpath)))
+            if(item_context.equals(candidatePpath))
             {
                 if(LOG.isTraceEnabled())
                 {
@@ -683,7 +678,7 @@ public class Helper
 
     private long _processMatchesForAliasP(String alias, long p, List<CandidateInfo> candidates, List<AssetId> matches)
     {
-    	  switch(matches.size())
+        switch(matches.size())
         {
             case 0:
             {
