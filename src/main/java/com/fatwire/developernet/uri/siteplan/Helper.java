@@ -683,11 +683,11 @@ public class Helper
 
     private long _processMatchesForAliasP(String alias, long p, List<CandidateInfo> candidates, List<AssetId> matches)
     {
-        switch(matches.size())
+    	  switch(matches.size())
         {
             case 0:
             {
-                String s = "No assets matching cpath:" + alias + " were found on Page:" + p + " but " + candidates.size() + " assets were found matching cpath.  Returning the first one: " + matches.get(0);
+                String s = "No assets matching cpath:" + alias + " were found on Page:" + p + " but " + candidates.size() + " assets were found matching cpath.  Returning the first one: " + candidates.get(0);
                 LOG.warn(s);
                 return candidates.get(0).getId().getId();
 
