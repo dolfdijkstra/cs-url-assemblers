@@ -95,7 +95,7 @@ import static com.fatwire.developernet.IListUtils.getStringValue;
  * if the wrapper is uncached, some performance degradation will ensue if the alias resolving process accesses the
  * database, and this needs to be mitigated.  There are various methods of achieving this but they are not discussed
  * in this document.  The following shortcut should be suitable in most cases (this goes at the top of the wrapper):</p>
- * <code>Helper.resolveItemContextAliasesAndPopulateIcs(ics);</code>
+ * <code>Helper.resolveItemContextAliasesAndPopulateIcs(ics, localeName);</code>
  * <p>More flexible  cid/p resolution looks like this - often at the very top of the wrapper:</p>
  * <pre>
  * String itemcontext = ics.GetVar("item-context");
@@ -107,7 +107,7 @@ import static com.fatwire.developernet.IListUtils.getStringValue;
  * Helper helper = new Helper(ics);
  * <p/>
  * if (itemcontext != null) {
- * longP = helper.resolvePForItemContext(itemcontext);
+ * longP = helper.resolvePForItemContext(itemcontext, localeName);
  * if (ics.GetVar("p") != null) {
  * log.warn("Unexpected value of p found in conjunction with itemcontext:"+ics.GetVar("p")+", "+ics.GetVar("item-context")+".  Ignoring item-context.");
  * }
@@ -117,7 +117,7 @@ import static com.fatwire.developernet.IListUtils.getStringValue;
  * }
  * }
  * if (itemalias != null) {
- * longCid = helper.resolveCidFromAlias(c, itemalias, longP);
+ * longCid = helper.resolveCidFromAlias(c, itemalias, longP, localeName);
  * if (ics.GetVar("cid") != null) {
  * log.warn("Unexpected value of cid found in conjunction with itemalias:"+ics.GetVar("cid")+", "+ics.GetVar("item-alias")+".  Ignoring itemalias.");
  * }
@@ -201,11 +201,12 @@ public class Helper
      * This method logs to the <code>com.fatwire.developernet.uri.siteplan.helper</code> logger.
      *
      * @param ics ICS context, containing <code>item-context</code>, <code>item-type</code>, and <code>item-alias</code> variables.
+     * @param locale the locale id to resolve the item context.
      * The resultant <code>c</code>, <code>cid</code>, <code>p</code> variables will be populated
      * into this upon successful execution.
      * @return Dimension corresponding to the asset referred to by the <code>item-alias</code>, if known.  Otherwise, returns null.
      */
-    public static Dimension resolveItemContextAliasesAndPopulateIcs(ICS ics)
+    public static Dimension resolveItemContextAliasesAndPopulateIcs(ICS ics, String locale)
     {
         Helper helper = new Helper(ics);
 
@@ -220,7 +221,7 @@ public class Helper
             }
             else
             {
-                CandidateInfo result = helper.resolveItemContext(item_context);
+                CandidateInfo result = helper.resolveItemContext(item_context, locale );
                 longP = result.getId().getId();
                 dimension = result.getDim();
                 ics.SetVar("p", Long.toString(longP));
@@ -242,7 +243,7 @@ public class Helper
             }
             else
             {
-                long longCid = helper.resolveCidFromAlias(c, item_alias, longP);
+                long longCid = helper.resolveCidFromAlias(c, item_alias, longP, locale);
                 ics.SetVar("cid", Long.toString(longCid));
                 if(LOG.isDebugEnabled())
                 {
@@ -542,15 +543,18 @@ public class Helper
      * Resolve the variable "p" for a given ppath.
      *
      * @param item_context item_context as computed in computePpath above.
+     * @param locale id of the locale.
      * @return ID of page asset
      */
-    public long resolvePForItemContext(String item_context)
+    public long resolvePForItemContext(String item_context, String locale)
     {
-        LOG.debug("resolvePForItemContext: Attempting to resolve P for ppath: " + item_context);
-        CandidateInfo result = resolveItemContext(item_context);
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("resolvePForItemContext: Attempting to resolve P for ppath: " + item_context + " and locale:" + locale);
+        }
+        CandidateInfo result = resolveItemContext(item_context, locale);
         if(LOG.isDebugEnabled())
         {
-            LOG.debug("resolvePForItemContext: Found matching asset for ppath: " + item_context + ": " + result);
+            LOG.debug("resolvePForItemContext: Found matching asset for ppath: " + item_context + " and locale " + locale+ " : " + result);
         }
         return result.getId().getId();
     }
@@ -559,16 +563,17 @@ public class Helper
      * Resolve the dimension for a given ppath.
      *
      * @param item_context item_context as computed in computePpath above.
+     * @param locale id of the locale.
      * @return dimension used to compute the input item_context. May be null if locale was not used to compute the
      *         item_context.
      */
-    public Dimension resolveDimensionForItemContext(String item_context)
+    public Dimension resolveDimensionForItemContext(String item_context, String locale)
     {
-        LOG.debug("resolveDimensionForItemContext: Attempting to resolve P for ppath: " + item_context);
-        CandidateInfo result = resolveItemContext(item_context);
+        LOG.debug("resolveDimensionForItemContext: Attempting to resolve P for ppath: " + item_context  + " and locale:" + locale);
+        CandidateInfo result = resolveItemContext(item_context, locale);
         if(LOG.isDebugEnabled())
         {
-            LOG.debug("resolveDimensionForItemContext: Found matching asset for ppath: " + item_context + ": " + result);
+            LOG.debug("resolveDimensionForItemContext: Found matching asset for ppath: " + item_context + " and locale " + locale+ " : " + result);
         }
         return result.getDim();
     }
@@ -581,13 +586,14 @@ public class Helper
      * @param c asset type of asset to resolve
      * @param alias of asset to resolve
      * @param p page to which the asset is associated
+     * @param locale id of the locale
      * @return id of asset.  Never null.  If not resolvable, an exception is thrown (as this should never occur)
      */
-    public long resolveCidFromAlias(String c, String alias, long p)
+    public long resolveCidFromAlias(String c, String alias, long p, String locale)
     {
         if(LOG.isDebugEnabled())
         {
-            LOG.debug("resolveCidFromAlias: Attempting to resolve cid from c:cpath:p: " + c + ":" + alias + ":" + p);
+            LOG.debug("resolveCidFromAlias: Attempting to resolve cid from c:cpath:p:locale " + c + ":" + alias + ":" + p + ":" + locale);
         }
         // first, if c is a page, then we don't have to do any lookups at all.... cid IS p!
         if("Page".equals(c))
@@ -601,18 +607,32 @@ public class Helper
         // with one of the cpath candidates.
         final long result;
         List<CandidateInfo> candidates = translator.findCandidatesForAlias(c, alias);
-        switch(candidates.size())
+
+        // Let the translator find all suitable candidates.
+        // We then filter
+        List<CandidateInfo> filteredCandidates = new ArrayList<CandidateInfo>();
+        if (locale!=null) {
+            for (CandidateInfo candidate: candidates) {
+                if ( candidate.getDim()!=null && String.valueOf(candidate.getDim().getId().getId()).equals(locale) )  {
+                    filteredCandidates.add(candidate);
+                }
+            }
+        } else {
+            // Locale not specified, consider all locales.
+            filteredCandidates = candidates;
+        }
+
+        switch(filteredCandidates.size())
         {
             case 0:
             {
-                throw new CSRuntimeException("Could not locate any assets in the database with a cpath matching: " + alias, ftErrors.badparams);
+                throw new CSRuntimeException("Could not locate any assets in the database with a cpath matching: " + alias + " and locale " + locale, ftErrors.badparams);
             }
             case 1:
             {
-                long id = candidates.get(0).getId().getId();
-                if(LOG.isTraceEnabled())
-                {
-                    LOG.trace("resolveCidFromAlias: Resolved cid to " + id + " from c:cpath without using p");
+                long id = filteredCandidates.get(0).getId().getId();
+                if(LOG.isTraceEnabled()) {
+                    LOG.trace("resolveCidFromAlias: Resolved cid to " + id + " from c:cpath given locale " + locale + " without using p");
                 }
                 result = id;
                 break;
@@ -626,8 +646,7 @@ public class Helper
                 List<AssetId> matches = new ArrayList<AssetId>();
                 for(CandidateInfo candidate : candidates)
                 {
-                    if(pageKids.contains(candidate.getId()))
-                    {
+                    if(pageKids.contains(candidate.getId())) {
                         matches.add(candidate.getId());
                     }
                 }
@@ -637,7 +656,7 @@ public class Helper
         }
         if(LOG.isDebugEnabled())
         {
-            LOG.debug("resolveCidFromAlias: Successfully resolved cid from c:cpath:p: " + c + ":" + alias + ":" + p + " and found: " + result);
+            LOG.debug("resolveCidFromAlias: Successfully resolved cid from c:cpath:p:locale " + c + ":" + alias + ":" + p + ":" + locale + " and found: " + result);
         }
         return result;
     }
@@ -646,10 +665,11 @@ public class Helper
      * Resolve the matching candidate for the specified input ppath variable.
      *
      * @param item_context input ppath
+     * @param locale name of the locale.
      * @return the matching candidate
      * @throws CSRuntimeException in case no match can be found.
      */
-    CandidateInfo resolveItemContext(String item_context)
+    CandidateInfo resolveItemContext(String item_context, String locale)
     {
         LOG.trace("resolveItemContext: Attempting to resolve P for ppath: " + item_context);
         if(item_context == null)
@@ -663,17 +683,24 @@ public class Helper
         for(CandidateInfo rightmostCandidate : rightmostCandidates)
         {
             String candidatePpath = computeItemContext(rightmostCandidate.getId().getId(), rightmostCandidate.getDim() == null ? null : rightmostCandidate.getDim().getName());
-            if(item_context.equals(candidatePpath))
-            {
-                if(LOG.isTraceEnabled())
-                {
-                    LOG.trace("resolveItemContext: Found matching asset for ppath: " + item_context + ": " + rightmostCandidate);
+
+            if(item_context.equals(candidatePpath)) {
+                if ( (rightmostCandidate.getDim()==null && locale==null) ||
+                     (rightmostCandidate.getDim()!=null && String.valueOf(rightmostCandidate.getDim().getId().getId()).equals(locale))
+                   ) {
+                    if(LOG.isTraceEnabled()) {
+                        LOG.trace("resolveItemContext: Found asset matching ppath: " + item_context + " and locale " + locale + ", asset is : " + rightmostCandidate );
+                    }
+                    return rightmostCandidate;
+                } else {
+                    if(LOG.isTraceEnabled()) {
+                        LOG.trace("resolveItemContext: Asset matches ppath " + item_context + " but not locale " + locale + ", asset is " + rightmostCandidate);
+                    }
                 }
-                return rightmostCandidate;
             }
         }
 
-        throw new CSRuntimeException("No page found that matches the ppath specified: " + item_context, ftErrors.pagenotfound);
+        throw new CSRuntimeException("No page found that matches the ppath specified: " + item_context + ", and locale: " + locale, ftErrors.pagenotfound);
     }
 
     private long _processMatchesForAliasP(String alias, long p, List<CandidateInfo> candidates, List<AssetId> matches)
@@ -685,12 +712,10 @@ public class Helper
                 String s = "No assets matching cpath:" + alias + " were found on Page:" + p + " but " + candidates.size() + " assets were found matching cpath.  Returning the first one: " + candidates.get(0);
                 LOG.warn(s);
                 return candidates.get(0).getId().getId();
-
             }
             case 1:
             {
-                if(LOG.isDebugEnabled())
-                {
+                if(LOG.isDebugEnabled()) {
                     LOG.debug("_processMatchesForAliasP: Found multiple assets matching cpath:" + alias + " but found a unique one that was placed on Page:" + p + ": " + matches.get(0));
                 }
                 return matches.get(0).getId();

@@ -59,10 +59,11 @@ public final class LangSiteHelper
      * Call this from your wrapper to pre-populate all of the relevant variables.
      *
      * @param ics ICS context
+     * @locale id of the locale
      * @return dimension of the resolved page
      * @see Helper#resolveItemContextAliasesAndPopulateIcs
      */
-    public static Dimension resolveItemContextAliasesAndPopulateIcs(ICS ics)
+    public static Dimension resolveItemContextAliasesAndPopulateIcs(ICS ics, String locale)
     {
         LangSiteHelper helper = new LangSiteHelper(ics);
 
@@ -101,7 +102,7 @@ public final class LangSiteHelper
                 // just use the internal worker function that does
                 // both.  End users will not notice unless they parse
                 // logs and count queries.
-                CandidateInfo result = helper.resolveItemContext(item_context);
+                CandidateInfo result = helper.resolveItemContext(item_context, locale);
                 longP = result.getId().getId();
                 dimension = result.getDim();
                 ics.SetVar("p", Long.toString(longP));
@@ -123,7 +124,7 @@ public final class LangSiteHelper
             }
             else
             {
-                long longCid = helper.resolveCidFromAlias(c, item_alias, longP);
+                long longCid = helper.resolveCidFromAlias(c, item_alias, longP, locale);
                 ics.SetVar("cid", Long.toString(longCid));
                 if(LOG.isDebugEnabled())
                 {
@@ -135,9 +136,9 @@ public final class LangSiteHelper
         return dimension;
     }
 
-    CandidateInfo resolveItemContext(String regular_item_context)
+    CandidateInfo resolveItemContext(String regular_item_context, String locale)
     {
-        return helper.resolveItemContext(regular_item_context);
+        return helper.resolveItemContext(regular_item_context, locale);
     }
 
     public String computeAlias(String c, long cid, String localeName)
@@ -161,21 +162,21 @@ public final class LangSiteHelper
         return getItemContextInfo(ics, item_context).getLanguageAlias();
     }
 
-    public long resolvePForItemContext(String item_context)
+    public long resolvePForItemContext(String item_context, String locale)
     {
         String regularItemContext = getItemContextInfo(ics, item_context).getRegularItemContext();
-        return helper.resolvePForItemContext(regularItemContext);
+        return helper.resolvePForItemContext(regularItemContext, locale);
     }
 
-    public Dimension resolveDimensionForItemContext(String item_context)
+    public Dimension resolveDimensionForItemContext(String item_context, String locale)
     {
         String regularItemContext = getItemContextInfo(ics, item_context).getRegularItemContext();
-        return helper.resolveDimensionForItemContext(regularItemContext);
+        return helper.resolveDimensionForItemContext(regularItemContext, locale);
     }
 
-    public long resolveCidFromAlias(String c, String alias, long p)
+    public long resolveCidFromAlias(String c, String alias, long p, String locale)
     {
-        return helper.resolveCidFromAlias(c, alias, p);
+        return helper.resolveCidFromAlias(c, alias, p, locale);
     }
 
     private static ItemContextInfo getItemContextInfo(ICS ics, String lang_site_itemcontext)
