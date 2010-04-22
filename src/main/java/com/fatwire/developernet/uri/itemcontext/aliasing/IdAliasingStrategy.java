@@ -8,6 +8,7 @@
  */
 package com.fatwire.developernet.uri.itemcontext.aliasing;
 
+import COM.FutureTense.Interfaces.ICS;
 import com.fatwire.assetapi.data.AssetId;
 import com.fatwire.mda.Dimension;
 import com.openmarket.xcelerate.asset.AssetIdImpl;
@@ -25,6 +26,8 @@ import java.util.List;
  */
 public final class IdAliasingStrategy implements AssetAliasingStrategy
 {
+    public IdAliasingStrategy(ICS ics) { }
+
     /**
      * The ID of the input asset is returned as the alias
      *
